@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VoiceOS</string>
+    <string name="accessibility_service_label">VoiceOS Controller</string>
+    <string name="accessibility_service_description">VoiceOS reads and controls any app on screen using your voice commands.</string>
+    <string name="mic_button_desc">VoiceOS mic button — tap to speak</string>
+    <!-- Macro screen -->
+    <string name="macros_title">Automation Macros</string>
+    <string name="macro_run">Run</string>
+    <string name="macro_built_in">Built-in</string>
+    <string name="macro_add">Add Macro</string>
+    <!-- AI Mode -->
+    <string name="ai_mode_on">AI mode ON — say \"Hey VoiceOS\"</string>
+    <string name="ai_mode_off">AI mode OFF — tap mic to speak</string>
+</resources>

@@ -1,0 +1,76 @@
+services:
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: voiceos_api
+    restart: always
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./server/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - voiceos_network
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: voiceos_web
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./web/.env.local
+    networks:
+      - voiceos_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: voiceos_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: voiceos_user
+      POSTGRES_PASSWORD: voiceos_password
+      POSTGRES_DB: voiceos_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceos_user -d voiceos_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voiceos_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: voiceos_redis
+    restart: always
+    command: redis-server --requirepass voiceos_redis_pass
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "voiceos_redis_pass", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - voiceos_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  voiceos_network:
+    driver: bridge

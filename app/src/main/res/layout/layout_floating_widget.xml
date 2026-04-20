@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    layout_floating_widget.xml
+    The draggable mic bubble shown over all apps.
+    A single ImageView styled as a circular button with a shadow.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
+    android:background="@drawable/bg_mic_idle"
+    android:elevation="8dp">
+
+    <ImageView
+        android:id="@+id/ivMic"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="center"
+        android:src="@drawable/ic_mic"
+        android:contentDescription="@string/mic_button_desc"
+        android:tint="@color/white" />
+
+</FrameLayout>

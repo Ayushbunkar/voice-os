@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+coverage/
+
+# Runtime data
+logs/
+uploads/
+
+# TypeScript cache
+*.tsbuildinfo

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground layer -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Blue circle background -->
+    <path
+        android:fillColor="#1A73E8"
+        android:pathData="M54,54m-54,0a54,54 0,1 1,108 0a54,54 0,1 1,-108 0" />
+
+    <!-- White mic icon centred on 108×108 grid -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30c-4.97,0 -9,4.03 -9,9l0,18c0,4.97 4.03,9 9,9s9,-4.03 9,-9L63,39c0,-4.97 -4.03,-9 -9,-9z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M69.9,57c0,9 -7.62,15.3 -15.9,15.3S38.1,66 38.1,57H33c0,10.23 8.16,18.69 18,20.16V84h6v-6.84c9.84,-1.47 18,-9.93 18,-20.16h-5.1z"/>
+</vector>

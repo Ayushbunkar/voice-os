@@ -1,0 +1,15 @@
+# Android / Gradle artifacts
+build/
+.gradle/
+
+# Local machine settings
+local.properties
+
+# Android Studio / generated files
+captures/
+
+# Signing and packaged artifacts
+*.jks
+*.keystore
+*.apk
+*.aab

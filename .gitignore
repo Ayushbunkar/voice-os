@@ -1,0 +1,100 @@
+# ------------------------------------------------------------
+# OS / Editor
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*.tmp
+*.bak
+
+.vscode/
+.idea/
+*.iml
+
+# ------------------------------------------------------------
+# Logs / runtime
+# ------------------------------------------------------------
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------------------------------------------
+# Environment / secrets
+# Keep sample files committed (.env.example)
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# Project-specific env files
+server/.env
+web/.env.local
+web/.env.*.local
+
+# ------------------------------------------------------------
+# Node / JavaScript / TypeScript
+# ------------------------------------------------------------
+node_modules/
+**/node_modules/
+
+coverage/
+**/coverage/
+
+# Build artifacts
+build/
+dist/
+**/dist/
+
+# ------------------------------------------------------------
+# Next.js (web)
+# ------------------------------------------------------------
+web/.next/
+web/out/
+web/.turbo/
+
+# ------------------------------------------------------------
+# Android / Gradle (app)
+# ------------------------------------------------------------
+.gradle/
+**/.gradle/
+
+# Android Studio / Gradle build outputs
+app/build/
+**/build/
+
+# Local SDK path (machine-specific)
+local.properties
+
+# Signing keys (never commit)
+*.jks
+*.keystore
+
+# Android generated captures
+captures/
+
+# ------------------------------------------------------------
+# Server runtime data
+# ------------------------------------------------------------
+server/uploads/
+uploads/
+
+# ------------------------------------------------------------
+# Docker / local volumes and overrides
+# ------------------------------------------------------------
+*.pid
+
+# If you use local compose overrides, uncomment:
+# docker-compose.override.yml
+
+# ------------------------------------------------------------
+# Misc generated files
+# ------------------------------------------------------------
+*.tsbuildinfo
+*.class
+*.jar
+*.war

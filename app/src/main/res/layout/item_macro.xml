@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    app:cardBackgroundColor="@color/card_bg"
+    app:cardCornerRadius="14dp"
+    app:cardElevation="3dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <!-- Built-in badge -->
+        <TextView
+            android:id="@+id/tvMacroBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:background="@drawable/bg_badge"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:text="Built-in"
+            android:textColor="@color/accent_blue"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
+        <!-- Macro name -->
+        <TextView
+            android:id="@+id/tvMacroName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_toStartOf="@id/tvMacroBadge"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Morning Routine"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <!-- Description -->
+        <TextView
+            android:id="@+id/tvMacroDesc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvMacroName"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="Opens WhatsApp and sends GM to contacts"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+        <!-- Step count -->
+        <TextView
+            android:id="@+id/tvMacroSteps"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/tvMacroDesc"
+            android:layout_marginTop="8dp"
+            android:text="4 steps"
+            android:textColor="@color/accent_blue"
+            android:textSize="11sp" />
+
+        <!-- Run button -->
+        <Button
+            android:id="@+id/btnRunMacro"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/tvMacroDesc"
+            android:layout_marginTop="6dp"
+            android:backgroundTint="@color/accent_blue"
+            android:minHeight="0dp"
+            android:paddingHorizontal="16dp"
+            android:text="▶ Run"
+            android:textColor="@color/white"
+            android:textSize="12sp" />
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView>

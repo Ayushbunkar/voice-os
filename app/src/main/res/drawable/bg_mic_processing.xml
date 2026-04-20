@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yellow/amber circle — shown while a command is being processed -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="#F9AB00" />
+    <stroke android:width="2dp" android:color="#FBCC6C" />
+</shape>
