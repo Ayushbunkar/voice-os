@@ -183,10 +183,6 @@ class FloatingWidgetService : Service() {
             isListening = false
             setButtonState(ButtonState.IDLE)
             AppLogger.w(TAG, "Voice error: $code")
-            if (aiModeEnabled) {
-                // Auto-restart continuous mode
-                voiceRecognizer.startListening()
-            }
         }
 
         voiceRecognizer.onListeningStateChanged = { listening ->
@@ -223,8 +219,6 @@ class FloatingWidgetService : Service() {
         } else {
             AppLogger.d(TAG, "No wake word in: \"$lower\" — ignored")
         }
-        // Keep listening
-        voiceRecognizer.startListening()
     }
 
     private fun dispatchCommand(text: String) {

@@ -26,6 +26,10 @@ class AutomationEngine private constructor(context: Context) {
     private val TAG = "AutomationEngine"
     private val prefs: SharedPreferences =
         context.getSharedPreferences("voiceos_macros", Context.MODE_PRIVATE)
+    private val cacheLock = Any()
+
+    @Volatile
+    private var cachedUserMacros: List<Macro>? = null
 
     companion object {
         private const val KEY_MACROS = "user_macros"
@@ -170,21 +174,30 @@ class AutomationEngine private constructor(context: Context) {
     // ── JSON serialisation ────────────────────────────────────────────
 
     private fun loadUserMacros(): List<Macro> {
-        val json = prefs.getString(KEY_MACROS, "[]") ?: "[]"
-        return runCatching { parseMacrosJson(json) }.getOrElse {
-            AppLogger.e(TAG, "Failed to parse macros JSON", it)
-            emptyList()
+        cachedUserMacros?.let { return it }
+
+        return synchronized(cacheLock) {
+            cachedUserMacros?.let { return@synchronized it }
+
+            val json = prefs.getString(KEY_MACROS, "[]") ?: "[]"
+            val loaded = runCatching { parseMacrosJson(json) }.getOrElse {
+                AppLogger.e(TAG, "Failed to parse macros JSON", it)
+                emptyList()
+            }
+            cachedUserMacros = loaded
+            loaded
         }
     }
 
     private fun saveUserMacros(macros: List<Macro>) {
         val json = macrosToJson(macros)
         prefs.edit().putString(KEY_MACROS, json).apply()
+        cachedUserMacros = macros
     }
 
     private fun parseMacrosJson(json: String): List<Macro> {
         val array = JSONArray(json)
-        val result = mutableListOf<Macro>()
+        val result = ArrayList<Macro>(array.length())
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
             val stepsArray = obj.getJSONArray("steps")

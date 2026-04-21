@@ -1,6 +1,6 @@
 package com.voiceos.ui
 
-import android.content.Intent
+import com.voiceos.BuildConfig
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -19,12 +19,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.voiceos.ui.theme.*
+import com.voiceos.utils.PerfMetrics
 
 /**
  * MainScreen — Top-level Compose screen for VoiceOS.
@@ -51,6 +51,8 @@ fun MainScreen(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    val perfSnapshot by PerfMetrics.snapshot.collectAsState()
+    val showPerfPanel = BuildConfig.DEBUG
 
     Column(
         modifier = modifier
@@ -97,6 +99,8 @@ fun MainScreen(
             isListening = uiState.isListening,
             isProcessing = uiState.isProcessing,
             lastCommand = uiState.lastCommand,
+            showPerformancePanel = showPerfPanel,
+            performanceSnapshot = perfSnapshot,
             onToggleAiMode = onToggleAiMode,
             onToggleContinuousListening = onToggleContinuousListening
         )
@@ -125,17 +129,7 @@ fun MainScreen(
 
 @Composable
 private fun HeroHeader() {
-    // Infinite floating glow animation on the icon
-    val infiniteTransition = rememberInfiniteTransition(label = "glow")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue  = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation   = tween(1800, easing = EaseInOut),
-            repeatMode  = RepeatMode.Reverse
-        ),
-        label = "glowAlpha"
-    )
+    val glowAlpha = 0.72f
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

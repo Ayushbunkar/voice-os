@@ -1,12 +1,14 @@
 package com.voiceos.commands
 
 import android.content.Context
+import android.os.SystemClock
 import com.voiceos.ai.AICommandProcessor
 import com.voiceos.api.CloudSyncManager
 import com.voiceos.automation.AutomationEngine
 import com.voiceos.memory.ContextManager
 import com.voiceos.model.Command
 import com.voiceos.utils.AppLogger
+import com.voiceos.utils.PerfMetrics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +42,7 @@ class CommandRouter(private val context: Context) {
      * This is the ONLY function external callers (FloatingWidgetService) need.
      */
     fun route(input: String): Command {
+        val startedAt = SystemClock.elapsedRealtime()
         val trimmed = input.trim()
         AppLogger.i(TAG, "Routing: \"$trimmed\"")
 
@@ -55,6 +58,10 @@ class CommandRouter(private val context: Context) {
         }
 
         AppLogger.i(TAG, "Routed to: $command")
+        val routeMs = SystemClock.elapsedRealtime() - startedAt
+        val commandName = command::class.simpleName ?: "Unknown"
+        PerfMetrics.recordRouteLatency(trimmed, commandName, routeMs)
+        AppLogger.i(TAG, "Route latency=${routeMs}ms command=$commandName")
         updateContext(command)
         syncToCloud(trimmed)
         return command

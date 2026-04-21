@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
-import com.voiceos.service.VoiceAccessibilityService
 import com.voiceos.utils.AppUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +46,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private inline fun updateUiState(transform: (UiState) -> UiState) {
+        _uiState.update { current ->
+            val next = transform(current)
+            if (next == current) current else next
+        }
+    }
+
     // ── Permission refresh ────────────────────────────────────────────
 
     /**
@@ -56,10 +62,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshPermissions(
         isMicGranted: Boolean
     ) {
-        _uiState.update { current ->
+        updateUiState { current ->
             current.copy(
                 isMicGranted = isMicGranted,
-                isAccessibilityEnabled = VoiceAccessibilityService.instance != null,
+                isAccessibilityEnabled = AppUtils.isAccessibilityServiceEnabled(ctx),
                 isOverlayGranted = AppUtils.hasOverlayPermission(ctx)
             )
         }
@@ -78,18 +84,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── Control panel toggles ─────────────────────────────────────────
 
     fun toggleAiMode() {
-        _uiState.update { it.copy(isAiModeEnabled = !it.isAiModeEnabled) }
+        updateUiState { it.copy(isAiModeEnabled = !it.isAiModeEnabled) }
     }
 
     fun toggleContinuousListening() {
-        _uiState.update { it.copy(isContinuousListening = !it.isContinuousListening) }
+        updateUiState { it.copy(isContinuousListening = !it.isContinuousListening) }
     }
 
     // ── Assistant launch ──────────────────────────────────────────────
 
     /**
-     * Starts the FloatingWidgetService and sends the user home so
-     * the floating mic bubble is visible over other apps.
+        * Starts the FloatingWidgetService and keeps the app screen visible.
      */
     fun launchAssistant() {
         val intent = Intent(ctx, FloatingWidgetService::class.java).apply {
@@ -98,25 +103,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         ctx.startForegroundService(intent)
 
-        // Go to home screen so the widget is visible
-        val home = Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        ctx.startActivity(home)
+        // Keep the app in foreground to avoid "app closed" confusion during setup/testing.
+        AppUtils.showToast(ctx, "Assistant started")
     }
 
     // ── Command log (called by FloatingWidgetService via broadcast) ───
 
     fun onCommandExecuted(commandText: String) {
-        _uiState.update { it.copy(lastCommand = commandText) }
+        updateUiState { it.copy(lastCommand = commandText) }
     }
 
     fun setListeningState(listening: Boolean) {
-        _uiState.update { it.copy(isListening = listening, isProcessing = false) }
+        updateUiState { it.copy(isListening = listening, isProcessing = false) }
     }
 
     fun setProcessingState(processing: Boolean) {
-        _uiState.update { it.copy(isProcessing = processing, isListening = false) }
+        updateUiState { it.copy(isProcessing = processing, isListening = false) }
     }
 }

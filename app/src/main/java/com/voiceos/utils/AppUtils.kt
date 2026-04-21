@@ -1,10 +1,15 @@
 package com.voiceos.utils
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import com.voiceos.service.VoiceAccessibilityService
 
 /**
  * AppUtils — Collection of static utility helpers used across the project.
@@ -28,9 +33,16 @@ object AppUtils {
     fun requestOverlayPermission(context: Context) {
         val intent = Intent(
             Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            android.net.Uri.parse("package:${context.packageName}")
+            Uri.parse("package:${context.packageName}")
         ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        context.startActivity(intent)
+
+        runCatching {
+            context.startActivity(intent)
+        }.onFailure {
+            AppLogger.w(TAG, "Overlay settings screen unavailable; opening app details", it)
+            openAppDetailsSettings(context)
+            showToast(context, "Enable 'Display over other apps' for VoiceOS")
+        }
     }
 
     /**
@@ -38,9 +50,82 @@ object AppUtils {
      * the VoiceOS accessibility service.
      */
     fun openAccessibilitySettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            showToast(
+                context,
+                "If blocked: App info > menu > Allow restricted settings"
+            )
+        }
+
+        val serviceComponent = ComponentName(
+            context,
+            VoiceAccessibilityService::class.java
+        ).flattenToString()
+
+        // Try to open the VoiceOS service details page first (API 31+).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val intentAction = "android.settings.ACCESSIBILITY_DETAILS_SETTINGS"
+            val detailsIntent = Intent(intentAction).apply {
+                putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", serviceComponent)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            val openedDetails = runCatching {
+                context.startActivity(detailsIntent)
+                true
+            }.getOrElse {
+                AppLogger.w(TAG, "Accessibility details screen unavailable; opening list", it)
+                false
+            }
+
+            if (openedDetails) return
+        }
+
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        context.startActivity(intent)
+
+        runCatching {
+            context.startActivity(intent)
+        }.onFailure {
+            AppLogger.w(TAG, "Accessibility settings screen unavailable; opening app details", it)
+            openAppDetailsSettings(context)
+        }
+    }
+
+    /** Opens App Info so users can allow restricted settings on Android 13+ sideloads. */
+    fun openAppDetailsSettings(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", context.packageName, null)
+        ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        runCatching { context.startActivity(intent) }
+            .onFailure { AppLogger.w(TAG, "Failed to open app details", it) }
+    }
+
+    /** Reliable check for whether VoiceOS accessibility service is currently enabled. */
+    fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val accessibilityEnabled = Settings.Secure.getInt(
+            context.contentResolver,
+            Settings.Secure.ACCESSIBILITY_ENABLED,
+            0
+        ) == 1
+
+        if (!accessibilityEnabled) return false
+
+        val expected = ComponentName(
+            context,
+            VoiceAccessibilityService::class.java
+        ).flattenToString()
+
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        return enabledServices.split(':').any { it.equals(expected, ignoreCase = true) }
     }
 
     // ─── App launcher helper ───────────────────────────────────────────────

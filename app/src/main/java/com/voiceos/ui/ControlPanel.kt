@@ -18,11 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.voiceos.ui.theme.*
+import com.voiceos.utils.PerfSnapshot
 
 /**
  * ControlPanel — Phase 2 AI control and monitoring composable.
@@ -52,6 +52,8 @@ fun ControlPanel(
     isListening: Boolean,
     isProcessing: Boolean,
     lastCommand: String,
+    showPerformancePanel: Boolean = false,
+    performanceSnapshot: PerfSnapshot? = null,
     onToggleAiMode: () -> Unit,
     onToggleContinuousListening: () -> Unit,
     modifier: Modifier = Modifier
@@ -81,6 +83,10 @@ fun ControlPanel(
         // Last command log
         if (lastCommand.isNotEmpty()) {
             CommandLogCard(lastCommand = lastCommand)
+        }
+
+        if (showPerformancePanel && performanceSnapshot != null) {
+            PerformanceDebugCard(snapshot = performanceSnapshot)
         }
     }
 }
@@ -236,14 +242,12 @@ fun AssistantStatusRow(
         StatusChip(
             label = "Listening",
             isActive = isListening,
-            activeColor = MicListening,
-            icon = Icons.Default.Mic
+            activeColor = MicListening
         )
         StatusChip(
             label = "Processing",
             isActive = isProcessing,
-            activeColor = MicProcessing,
-            icon = Icons.Default.AutoAwesome
+            activeColor = MicProcessing
         )
     }
 }
@@ -253,7 +257,6 @@ fun StatusChip(
     label: String,
     isActive: Boolean,
     activeColor: Color,
-    icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     val bgColor by animateColorAsState(
@@ -284,22 +287,13 @@ fun StatusChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // Pulsing dot when active
+        // Static dot avoids continuous recomposition while listening.
         if (isActive) {
-            val pulse = rememberInfiniteTransition(label = "pulse")
-            val alpha by pulse.animateFloat(
-                initialValue = 0.4f, targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(600, easing = EaseInOut),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "pulseAlpha"
-            )
             Box(
                 modifier = Modifier
                     .size(7.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(activeColor.copy(alpha = alpha))
+                    .background(activeColor.copy(alpha = 0.92f))
             )
         }
         Text(
@@ -352,6 +346,106 @@ fun CommandLogCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun PerformanceDebugCard(
+    snapshot: PerfSnapshot,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+        ),
+        border = CardDefaults.outlinedCardBorder()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Debug Performance",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            PerfStatRow(
+                label = "Route",
+                lastMs = snapshot.route.lastMs,
+                avgMs = snapshot.route.avgMs,
+                count = snapshot.route.count
+            )
+            PerfStatRow(
+                label = "Execute",
+                lastMs = snapshot.execute.lastMs,
+                avgMs = snapshot.execute.avgMs,
+                count = snapshot.execute.count
+            )
+            PerfStatRow(
+                label = "WA total",
+                lastMs = snapshot.whatsAppTotal.lastMs,
+                avgMs = snapshot.whatsAppTotal.avgMs,
+                count = snapshot.whatsAppTotal.count
+            )
+            PerfStatRow(
+                label = "WA step",
+                lastMs = snapshot.whatsAppStep.lastMs,
+                avgMs = snapshot.whatsAppStep.avgMs,
+                count = snapshot.whatsAppStep.count
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+
+            Text(
+                text = "Last route: ${snapshot.lastRoutedCommand.ifBlank { "-" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Last execute: ${snapshot.lastExecuteCommand.ifBlank { "-" }} (${snapshot.lastExecuteStatus.ifBlank { "-" }})",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Last WA step: ${snapshot.lastWhatsAppStep.ifBlank { "-" }} (${snapshot.lastWhatsAppStepStatus.ifBlank { "-" }})",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Tuning: debounce=${snapshot.accessibilityDebounceMs}ms, poll=${snapshot.whatsAppPollMs}ms",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun PerfStatRow(
+    label: String,
+    lastMs: Long,
+    avgMs: Long,
+    count: Long
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "last ${lastMs}ms | avg ${avgMs}ms | n=$count",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

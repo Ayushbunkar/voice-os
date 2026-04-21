@@ -1,10 +1,14 @@
 package com.voiceos.automation
 
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import com.voiceos.service.VoiceAccessibilityService
 import com.voiceos.utils.AppLogger
 import com.voiceos.utils.AppUtils
+import com.voiceos.utils.PerfMetrics
+import com.voiceos.utils.RuntimeTuningProfile
+import com.voiceos.utils.RuntimeTuning
 import kotlinx.coroutines.delay
 
 /**
@@ -40,58 +44,118 @@ object WhatsAppAutomation {
         message: String,
         context: android.content.Context
     ): Boolean {
+        val startedAt = SystemClock.elapsedRealtime()
+        val tuning = RuntimeTuning.get(context)
+        val pollMs = tuning.whatsAppPollMs
+        PerfMetrics.recordTuning(whatsAppPollMs = pollMs)
+
         AppLogger.i(TAG, "sendMessage → contact=$contactName msg=$message")
+        AppLogger.i(
+            TAG,
+            "Using adaptive WhatsApp polling=${pollMs}ms timeoutScale=${tuning.timeoutScale} tier=${tuning.tier}"
+        )
+
+        fun fail(reason: String): Boolean {
+            val totalMs = SystemClock.elapsedRealtime() - startedAt
+            PerfMetrics.recordWhatsAppTotal(totalMs, success = false)
+            AppLogger.w(TAG, "sendMessage failed reason=$reason latency=${totalMs}ms")
+            return false
+        }
+
+        suspend fun runStep(stepName: String, action: suspend () -> Boolean): Boolean {
+            val stepStart = SystemClock.elapsedRealtime()
+            val success = runCatching { action() }.getOrElse {
+                AppLogger.e(TAG, "Step failed with exception: $stepName", it)
+                false
+            }
+            val stepMs = SystemClock.elapsedRealtime() - stepStart
+            PerfMetrics.recordWhatsAppStep(stepName, stepMs, success)
+            AppLogger.i(TAG, "step=$stepName latency=${stepMs}ms success=$success")
+            return success
+        }
 
         val service = VoiceAccessibilityService.instance ?: run {
             AppLogger.e(TAG, "AccessibilityService not running")
-            return false
+            return fail("service_not_running")
         }
 
         // Step 1: Open WhatsApp
-        if (!AppUtils.launchApp(context, "WhatsApp")) {
+        if (!runStep("launch_whatsapp") { AppUtils.launchApp(context, "WhatsApp") }) {
             AppLogger.e(TAG, "Could not launch WhatsApp")
-            return false
+            return fail("launch_failed")
         }
-        delay(2500L) // wait for splash / home screen
+
+        val rootReady = runStep("wait_root_window") {
+            waitUntil(
+                timeoutMs = RuntimeTuning.scaleTimeout(3500L, tuning),
+                pollMs = pollMs
+            ) { service.rootInActiveWindow != null }
+        }
+        if (!rootReady) return fail("window_not_ready")
 
         // Step 2: Tap the search icon / FAB
-        if (!tapSearch(service)) {
-            AppLogger.w(TAG, "Could not find search — trying FAB click")
-            tapNodeByDescription(service, "Search") ||
-                    tapNodeByText(service, "Search")
-            delay(800L)
+        val searchFound = runStep("tap_search") {
+            waitUntil(
+                timeoutMs = RuntimeTuning.scaleTimeout(2500L, tuning),
+                pollMs = pollMs
+            ) {
+                tapSearch(service) || tapNodeByDescription(service, "Search") || tapNodeByText(service, "Search")
+            }
+        }
+        if (!searchFound) {
+            AppLogger.w(TAG, "Could not find search explicitly — trying focused input fallback")
         }
 
         // Step 3: Type contact name
-        typeIntoFocused(service, contactName)
-        delay(1500L) // wait for search results
+        val contactTyped = runStep("type_contact_name") { typeIntoFocused(service, contactName) }
+        if (!contactTyped) {
+            AppLogger.e(TAG, "Could not type contact name into focused field")
+            return fail("type_contact_failed")
+        }
 
         // Step 4: Tap the first contact result
-        if (!tapContactResult(service, contactName)) {
+        if (!runStep("select_contact") { tapContactResult(service, contactName, pollMs, tuning) }) {
             AppLogger.e(TAG, "Could not find contact: $contactName")
             AppUtils.showToast(context, "Contact \"$contactName\" not found")
-            return false
+            return fail("contact_not_found")
         }
-        delay(2000L) // wait for chat to load
 
         // Step 5: Tap message input
-        if (!tapMessageInput(service)) {
-            AppLogger.e(TAG, "Could not find message input box")
-            return false
+        val inputFocused = runStep("focus_message_input") {
+            waitUntil(
+                timeoutMs = RuntimeTuning.scaleTimeout(3500L, tuning),
+                pollMs = pollMs
+            ) { tapMessageInput(service) }
         }
-        delay(500L)
+        if (!inputFocused) {
+            AppLogger.e(TAG, "Could not find message input box")
+            return fail("message_input_not_found")
+        }
 
         // Step 6: Type message
-        typeIntoFocused(service, message)
-        delay(400L)
+        val messageTyped = runStep("type_message") { typeIntoFocused(service, message) }
+        if (!messageTyped) {
+            AppLogger.e(TAG, "Could not type message")
+            return fail("type_message_failed")
+        }
+        delay(120L)
 
         // Step 7: Tap Send
-        if (!tapSendButton(service)) {
+        val sent = runStep("tap_send") {
+            waitUntil(
+                timeoutMs = RuntimeTuning.scaleTimeout(1500L, tuning),
+                pollMs = pollMs
+            ) { tapSendButton(service) }
+        }
+        if (!sent) {
             AppLogger.e(TAG, "Could not find send button")
-            return false
+            return fail("send_button_not_found")
         }
 
+        val totalMs = SystemClock.elapsedRealtime() - startedAt
+        PerfMetrics.recordWhatsAppTotal(totalMs, success = true)
         AppLogger.i(TAG, "Message sent successfully!")
+        AppLogger.i(TAG, "sendMessage latency=${totalMs}ms success=true")
         return true
     }
 
@@ -108,21 +172,29 @@ object WhatsAppAutomation {
 
     private suspend fun tapContactResult(
         service: VoiceAccessibilityService,
-        contactName: String
+        contactName: String,
+        pollMs: Long,
+        tuning: RuntimeTuningProfile
     ): Boolean {
-        // Try up to 3 times (search results may lazily populate)
-        repeat(3) { attempt ->
+        var attempt = 0
+        val found = waitUntil(
+            timeoutMs = RuntimeTuning.scaleTimeout(3500L, tuning),
+            pollMs = pollMs
+        ) {
+            attempt += 1
             val root = service.rootInActiveWindow
             if (root != null) {
                 val node = findNodeByTextContains(root, contactName)
                 if (node != null) {
-                    return performClick(node)
+                    return@waitUntil performClick(node)
                 }
             }
-            AppLogger.d(TAG, "Contact not visible yet (attempt ${attempt+1}), waiting…")
-            delay(600L)
+            if (attempt % 5 == 0) {
+                AppLogger.d(TAG, "Contact not visible yet (attempt $attempt)")
+            }
+            false
         }
-        return false
+        return found
     }
 
     private fun tapMessageInput(service: VoiceAccessibilityService): Boolean {
@@ -236,5 +308,18 @@ object WhatsAppAutomation {
             }
             false
         }
+    }
+
+    private suspend fun waitUntil(
+        timeoutMs: Long,
+        pollMs: Long,
+        condition: () -> Boolean
+    ): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (condition()) return true
+            delay(pollMs)
+        }
+        return condition()
     }
 }

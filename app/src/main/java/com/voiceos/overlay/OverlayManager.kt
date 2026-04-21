@@ -29,31 +29,44 @@ class OverlayManager(private val context: Context) {
     private val TAG = "OverlayManager"
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    /** Currently displayed overlay views (one per element). */
-    private val overlayViews = mutableListOf<View>()
+    /** Reused overlay badge pool to avoid add/remove view churn. */
+    private val overlayViews = mutableListOf<TextView>()
 
     /**
      * Removes all existing labels then draws a fresh badge for each entry in [nodes].
      * The map key is the 1-based index shown to the user.
      */
     fun drawOverlay(nodes: Map<Int, AccessibilityNodeInfo>) {
-        clearOverlay()
+        val sorted = nodes.toSortedMap()
+        ensureOverlayCount(sorted.size)
 
-        nodes.forEach { (index, node) ->
+        var visibleCount = 0
+        sorted.forEach { (index, node) ->
             val rect = Rect()
             node.getBoundsInScreen(rect)
             if (rect.isEmpty) return@forEach
 
-            val badge = createBadge(index)
+            val badge = overlayViews[visibleCount]
+            badge.text = index.toString()
             val params = buildLayoutParams(rect.left, rect.top)
             try {
-                windowManager.addView(badge, params)
-                overlayViews.add(badge)
+                if (badge.parent == null) {
+                    windowManager.addView(badge, params)
+                } else {
+                    windowManager.updateViewLayout(badge, params)
+                }
+                badge.visibility = View.VISIBLE
+                visibleCount++
             } catch (e: Exception) {
                 AppLogger.e(TAG, "Failed to add overlay view for index $index", e)
             }
         }
-        AppLogger.d(TAG, "Overlay drawn with ${overlayViews.size} badges")
+
+        for (i in visibleCount until overlayViews.size) {
+            overlayViews[i].visibility = View.GONE
+        }
+
+        AppLogger.d(TAG, "Overlay drawn with $visibleCount badges")
     }
 
     /** Remove all overlay badges from the screen immediately. */
@@ -67,6 +80,12 @@ class OverlayManager(private val context: Context) {
         }
         overlayViews.clear()
         AppLogger.d(TAG, "Overlay cleared")
+    }
+
+    private fun ensureOverlayCount(target: Int) {
+        while (overlayViews.size < target) {
+            overlayViews.add(createBadge(overlayViews.size + 1))
+        }
     }
 
     // ── Private builders ──────────────────────────────────────────────────

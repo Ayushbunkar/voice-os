@@ -8,10 +8,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.voiceos.ui.theme.VoiceOSTheme
+import com.voiceos.utils.AppUtils
 import com.voiceos.utils.AppLogger
 
 /**
@@ -53,15 +54,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             VoiceOSTheme {
                 // Collect state from ViewModel as Compose State
-                val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+                val uiState by viewModel.uiState.collectAsState()
 
                 MainScreen(
                     uiState = uiState,
 
                     // ── Permission callbacks ────────────────────────────
                     onGrantMic = { requestMicPermission() },
-                    onOpenAccessibility = { viewModel.openAccessibilitySettings() },
-                    onGrantOverlay = { viewModel.requestOverlayPermission() },
+                    onOpenAccessibility = { AppUtils.openAccessibilitySettings(this) },
+                    onGrantOverlay = { AppUtils.requestOverlayPermission(this) },
 
                     // ── Control panel callbacks ─────────────────────────
                     onToggleAiMode = { viewModel.toggleAiMode() },
