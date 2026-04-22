@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import com.voiceos.utils.AppLogger
+import com.voiceos.utils.RuntimeTuning
 import java.util.Locale
 
 /**
@@ -15,7 +16,8 @@ import java.util.Locale
 class VoiceRecognizer(private val context: Context) {
 
     private val TAG = "VoiceRecognizer"
-    private val minRestartIntervalMs = 250L
+    private val timingProfile = resolveTimingProfile()
+    private val minRestartIntervalMs = timingProfile.minRestartIntervalMs
 
     var onResult: ((String) -> Unit)? = null
     var onError: ((Int) -> Unit)? = null
@@ -36,10 +38,21 @@ class VoiceRecognizer(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            
-            // Fast detection: 600ms of silence triggers a result
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 600L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 600L)
+
+            // Adaptive turn detection tuned for device capability tier.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS,
+                timingProfile.minSpeechLengthMs
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                timingProfile.completeSilenceMs
+            )
+            putExtra(
+                RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                timingProfile.possiblyCompleteSilenceMs
+            )
         }
     }
 
@@ -97,6 +110,12 @@ class VoiceRecognizer(private val context: Context) {
     }
 
     init {
+        AppLogger.i(
+            TAG,
+            "timing tier=${timingProfile.tier} restart=${timingProfile.minRestartIntervalMs}ms " +
+                "minSpeech=${timingProfile.minSpeechLengthMs}ms completeSilence=${timingProfile.completeSilenceMs}ms"
+        )
+
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
                 setRecognitionListener(listener)
@@ -118,9 +137,22 @@ class VoiceRecognizer(private val context: Context) {
 
         shouldRestart = continuousMode
         lastStartAtMs = now
-        speechRecognizer?.startListening(recognizerIntent)
-        isListening = true
-        onListeningStateChanged?.invoke(true)
+        val recognizer = speechRecognizer ?: run {
+            AppLogger.w(TAG, "SpeechRecognizer unavailable during start")
+            onListeningStateChanged?.invoke(false)
+            return
+        }
+
+        val started = runCatching {
+            recognizer.startListening(recognizerIntent)
+            true
+        }.getOrElse { error ->
+            AppLogger.w(TAG, "startListening failed: ${error.message}")
+            false
+        }
+
+        isListening = started
+        onListeningStateChanged?.invoke(started)
     }
 
     fun stopListening() {
@@ -145,4 +177,39 @@ class VoiceRecognizer(private val context: Context) {
         if (now - lastStartAtMs < minRestartIntervalMs) return
         startListening()
     }
+
+    private fun resolveTimingProfile(): VoiceTimingProfile {
+        val runtimeProfile = RuntimeTuning.get(context)
+        return when (runtimeProfile.tier) {
+            "high" -> VoiceTimingProfile(
+                tier = runtimeProfile.tier,
+                minRestartIntervalMs = 70L,
+                minSpeechLengthMs = 160L,
+                completeSilenceMs = 240L,
+                possiblyCompleteSilenceMs = 170L
+            )
+            "low" -> VoiceTimingProfile(
+                tier = runtimeProfile.tier,
+                minRestartIntervalMs = 130L,
+                minSpeechLengthMs = 280L,
+                completeSilenceMs = 440L,
+                possiblyCompleteSilenceMs = 320L
+            )
+            else -> VoiceTimingProfile(
+                tier = runtimeProfile.tier,
+                minRestartIntervalMs = 95L,
+                minSpeechLengthMs = 210L,
+                completeSilenceMs = 330L,
+                possiblyCompleteSilenceMs = 240L
+            )
+        }
+    }
+
+    private data class VoiceTimingProfile(
+        val tier: String,
+        val minRestartIntervalMs: Long,
+        val minSpeechLengthMs: Long,
+        val completeSilenceMs: Long,
+        val possiblyCompleteSilenceMs: Long
+    )
 }

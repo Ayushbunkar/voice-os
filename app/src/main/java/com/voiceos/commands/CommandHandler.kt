@@ -82,7 +82,12 @@ class CommandHandler(private val context: Context) {
                 }
                 service.performScroll(command.direction)
                 contextManager.rememberScroll(command.direction)
-                val dirText = if (command.direction == Command.ScrollDirection.DOWN) "down" else "up"
+                val dirText = when (command.direction) {
+                    Command.ScrollDirection.DOWN -> "down"
+                    Command.ScrollDirection.UP -> "up"
+                    Command.ScrollDirection.LEFT -> "left"
+                    Command.ScrollDirection.RIGHT -> "right"
+                }
                 tts.speak("Scrolling $dirText")
                 recordExecutionOutcome(commandName, startedAt, "ok")
             }

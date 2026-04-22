@@ -11,7 +11,7 @@ import com.voiceos.utils.AppLogger
  *
  * Supported phrases (examples):
  *   "click 3"  /  "tap 5"  /  "press 1"
- *   "scroll down"  /  "scroll up"
+ *   "scroll down"  /  "scroll up"  /  "slide left"  /  "slide right"
  *   "go back"  /  "back"
  *   "open youtube"  /  "launch whatsapp"
  */
@@ -31,16 +31,11 @@ object CommandParser {
             return Command.Click(index)
         }
 
-        // ── Scroll ────────────────────────────────────────────────────────
-        when {
-            text.contains("scroll down") || text == "down" ->
-                return Command.Scroll(Command.ScrollDirection.DOWN).also {
-                    AppLogger.i(TAG, "Matched Scroll(DOWN)")
-                }
-            text.contains("scroll up") || text == "up" ->
-                return Command.Scroll(Command.ScrollDirection.UP).also {
-                    AppLogger.i(TAG, "Matched Scroll(UP)")
-                }
+        // ── Scroll / Swipe / Slide ───────────────────────────────────────
+        parseScrollDirection(text)?.let { direction ->
+            return Command.Scroll(direction).also {
+                AppLogger.i(TAG, "Matched Scroll($direction)")
+            }
         }
 
         // ── Go Back ───────────────────────────────────────────────────────
@@ -60,5 +55,21 @@ object CommandParser {
         // ── Delegate to AI parser for natural language ────────────────────
         AppLogger.d(TAG, "Rule-based parse failed — delegating to AiCommandParser")
         return AiCommandParser.parseNaturalLanguage(rawText)
+    }
+
+    private fun parseScrollDirection(text: String): Command.ScrollDirection? {
+        return when {
+            matchesDirectionalScroll(text, "down") -> Command.ScrollDirection.DOWN
+            matchesDirectionalScroll(text, "up") -> Command.ScrollDirection.UP
+            matchesDirectionalScroll(text, "left") -> Command.ScrollDirection.LEFT
+            matchesDirectionalScroll(text, "right") -> Command.ScrollDirection.RIGHT
+            else -> null
+        }
+    }
+
+    private fun matchesDirectionalScroll(text: String, direction: String): Boolean {
+        if (text == direction) return true
+        val regex = Regex("""\b(scroll|swipe|slide)\s+$direction\b""")
+        return regex.containsMatchIn(text)
     }
 }

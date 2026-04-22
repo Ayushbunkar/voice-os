@@ -45,9 +45,15 @@ class FloatingWidgetService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: View
     private lateinit var voiceRecognizer: VoiceRecognizer
-    private lateinit var commandRouter: CommandRouter
-    private lateinit var commandHandler: CommandHandler
-    private lateinit var tts: TtsManager
+    private var ttsManager: TtsManager? = null
+
+    private val commandRouter by lazy(LazyThreadSafetyMode.NONE) {
+        CommandRouter(applicationContext)
+    }
+
+    private val commandHandler by lazy(LazyThreadSafetyMode.NONE) {
+        CommandHandler(applicationContext)
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isListening = false
@@ -66,9 +72,6 @@ class FloatingWidgetService : Service() {
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        commandRouter = CommandRouter(applicationContext)
-        commandHandler = CommandHandler(applicationContext)
-        tts = TtsManager.getInstance(applicationContext)
 
         voiceRecognizer = VoiceRecognizer(applicationContext).apply {
             continuousMode = aiModeEnabled
@@ -78,20 +81,24 @@ class FloatingWidgetService : Service() {
         addFloatingView()
         startForegroundNotification()
 
-        tts.speak("VoiceOS ready")
         AppLogger.i(TAG, "FloatingWidgetService started (AI=$aiModeEnabled)")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         aiModeEnabled = intent?.getBooleanExtra(EXTRA_AI_MODE, false) ?: false
         voiceRecognizer.continuousMode = aiModeEnabled
+        if (aiModeEnabled && !isListening) {
+            voiceRecognizer.startListening()
+        } else if (!aiModeEnabled && isListening) {
+            voiceRecognizer.stopListening()
+        }
         AppLogger.d(TAG, "AI mode = $aiModeEnabled")
         return START_STICKY
     }
 
     override fun onDestroy() {
         voiceRecognizer.destroy()
-        tts.stop()
+        ttsManager?.stop()
         runCatching { windowManager.removeView(floatingView) }
         AppLogger.i(TAG, "FloatingWidgetService destroyed")
         super.onDestroy()
@@ -211,10 +218,10 @@ class FloatingWidgetService : Service() {
 
             if (command.isNotEmpty()) {
                 AppLogger.i(TAG, "Wake word detected, command: \"$command\"")
-                tts.speak("Processing")
+                tts().speak("Processing")
                 dispatchCommand(command)
             } else {
-                tts.speak("Yes? Say your command.")
+                tts().speak("Yes? Say your command.")
             }
         } else {
             AppLogger.d(TAG, "No wake word in: \"$lower\" — ignored")
@@ -272,6 +279,14 @@ class FloatingWidgetService : Service() {
             .build()
 
         startForeground(1, notification)
+    }
+
+    private fun tts(): TtsManager {
+        val existing = ttsManager
+        if (existing != null) return existing
+        val created = TtsManager.getInstance(applicationContext)
+        ttsManager = created
+        return created
     }
 
     private fun dpToPx(dp: Int) = (dp * resources.displayMetrics.density).toInt()

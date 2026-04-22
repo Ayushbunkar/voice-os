@@ -46,13 +46,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private inline fun updateUiState(transform: (UiState) -> UiState) {
-        _uiState.update { current ->
-            val next = transform(current)
-            if (next == current) current else next
-        }
-    }
-
     // ── Permission refresh ────────────────────────────────────────────
 
     /**
@@ -62,7 +55,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshPermissions(
         isMicGranted: Boolean
     ) {
-        updateUiState { current ->
+        _uiState.update { current ->
             current.copy(
                 isMicGranted = isMicGranted,
                 isAccessibilityEnabled = AppUtils.isAccessibilityServiceEnabled(ctx),
@@ -84,11 +77,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── Control panel toggles ─────────────────────────────────────────
 
     fun toggleAiMode() {
-        updateUiState { it.copy(isAiModeEnabled = !it.isAiModeEnabled) }
+        _uiState.update { it.copy(isAiModeEnabled = !it.isAiModeEnabled) }
     }
 
     fun toggleContinuousListening() {
-        updateUiState { it.copy(isContinuousListening = !it.isContinuousListening) }
+        _uiState.update { it.copy(isContinuousListening = !it.isContinuousListening) }
     }
 
     // ── Assistant launch ──────────────────────────────────────────────
@@ -110,14 +103,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ── Command log (called by FloatingWidgetService via broadcast) ───
 
     fun onCommandExecuted(commandText: String) {
-        updateUiState { it.copy(lastCommand = commandText) }
+        _uiState.update { it.copy(lastCommand = commandText) }
     }
 
     fun setListeningState(listening: Boolean) {
-        updateUiState { it.copy(isListening = listening, isProcessing = false) }
+        _uiState.update { it.copy(isListening = listening, isProcessing = false) }
     }
 
     fun setProcessingState(processing: Boolean) {
-        updateUiState { it.copy(isProcessing = processing, isListening = false) }
+        _uiState.update { it.copy(isProcessing = processing, isListening = false) }
     }
 }

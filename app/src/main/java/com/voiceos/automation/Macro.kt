@@ -44,8 +44,12 @@ data class MacroStep(
     fun toCommand(): Command = when (type.uppercase()) {
         "CLICK"        -> Command.Click(index ?: 1)
         "SCROLL"       -> Command.Scroll(
-            if (direction?.uppercase() == "UP") Command.ScrollDirection.UP
-            else Command.ScrollDirection.DOWN
+            when (direction?.uppercase()) {
+                "UP" -> Command.ScrollDirection.UP
+                "LEFT" -> Command.ScrollDirection.LEFT
+                "RIGHT" -> Command.ScrollDirection.RIGHT
+                else -> Command.ScrollDirection.DOWN
+            }
         )
         "GO_BACK"      -> Command.GoBack
         "OPEN_APP"     -> Command.OpenApp(appName ?: "")

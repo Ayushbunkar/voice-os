@@ -17,7 +17,7 @@ import com.voiceos.utils.AppLogger
  *
  * Behaviour:
  *  • For every clickable node provided, creates a small [TextView] badge positioned
- *    at the top-left corner of that node's screen bounding rect.
+ *    at the center of that node's screen bounding rect.
  *  • All views are added to [WindowManager] with TYPE_ACCESSIBILITY_OVERLAY so they
  *    appear above the target app without requiring SYSTEM_ALERT_WINDOW when running
  *    inside an AccessibilityService.
@@ -48,7 +48,13 @@ class OverlayManager(private val context: Context) {
 
             val badge = overlayViews[visibleCount]
             badge.text = index.toString()
-            val params = buildLayoutParams(rect.left, rect.top)
+            badge.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val (x, y) = centeredPosition(
+                rect = rect,
+                badgeWidth = badge.measuredWidth,
+                badgeHeight = badge.measuredHeight
+            )
+            val params = buildLayoutParams(x, y)
             try {
                 if (badge.parent == null) {
                     windowManager.addView(badge, params)
@@ -86,6 +92,14 @@ class OverlayManager(private val context: Context) {
         while (overlayViews.size < target) {
             overlayViews.add(createBadge(overlayViews.size + 1))
         }
+    }
+
+    private fun centeredPosition(rect: Rect, badgeWidth: Int, badgeHeight: Int): Pair<Int, Int> {
+        val safeWidth = badgeWidth.coerceAtLeast(1)
+        val safeHeight = badgeHeight.coerceAtLeast(1)
+        val x = (rect.centerX() - safeWidth / 2).coerceAtLeast(0)
+        val y = (rect.centerY() - safeHeight / 2).coerceAtLeast(0)
+        return x to y
     }
 
     // ── Private builders ──────────────────────────────────────────────────

@@ -40,9 +40,8 @@ object AiCommandParser {
         }
 
         // ── Heuristic: scroll intent ──────────────────────────────────────
-        if (text.contains("scroll") || text.contains("swipe")) {
-            val dir = if (text.contains("up") || text.contains("top"))
-                Command.ScrollDirection.UP else Command.ScrollDirection.DOWN
+        if (text.contains("scroll") || text.contains("swipe") || text.contains("slide")) {
+            val dir = inferScrollDirection(text)
             AppLogger.i(TAG, "AI inferred Scroll($dir)")
             return Command.Scroll(dir)
         }
@@ -69,6 +68,19 @@ object AiCommandParser {
         return Command.Unknown(rawText)
     }
 
+    private fun inferScrollDirection(text: String): Command.ScrollDirection {
+        return when {
+            hasWord(text, "left") -> Command.ScrollDirection.LEFT
+            hasWord(text, "right") -> Command.ScrollDirection.RIGHT
+            hasWord(text, "up") || hasWord(text, "top") -> Command.ScrollDirection.UP
+            else -> Command.ScrollDirection.DOWN
+        }
+    }
+
+    private fun hasWord(text: String, word: String): Boolean {
+        return Regex("""\b$word\b""").containsMatchIn(text)
+    }
+
     /*
      * ─── TODO: Real API integration ──────────────────────────────────────
      *
@@ -76,7 +88,7 @@ object AiCommandParser {
      *     val client = OkHttpClient()
      *     val prompt = """
      *         You are a voice command parser. Convert the user's speech into JSON:
-     *         {"action":"click|scroll|goBack|openApp","index":N,"direction":"up|down","appName":"..."}
+    *         {"action":"click|scroll|goBack|openApp","index":N,"direction":"up|down|left|right","appName":"..."}
      *         Speech: "$rawText"
      *     """.trimIndent()
      *     // ... build request, call API, parse JSON ...

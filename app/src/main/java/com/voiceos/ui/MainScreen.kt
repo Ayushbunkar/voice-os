@@ -325,7 +325,7 @@ private fun LaunchButton(
 private fun ExampleCommandsRow() {
     val examples = listOf(
         "\"send hi to Riya\"",
-        "\"scroll down\"",
+        "\"slide left\"",
         "\"click 3\"",
         "\"good morning\""
     )

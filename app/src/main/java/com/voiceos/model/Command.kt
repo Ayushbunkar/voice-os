@@ -56,5 +56,5 @@ sealed class Command {
     data class Unknown(val rawText: String) : Command()
 
     // ── Enums ───────────────────────────────────────────────────────────
-    enum class ScrollDirection { UP, DOWN }
+    enum class ScrollDirection { UP, DOWN, LEFT, RIGHT }
 }

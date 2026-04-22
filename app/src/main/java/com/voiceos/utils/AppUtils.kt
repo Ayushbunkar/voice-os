@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.annotation.RequiresApi
 import com.voiceos.service.VoiceAccessibilityService
 
 /**
@@ -62,24 +61,21 @@ object AppUtils {
             VoiceAccessibilityService::class.java
         ).flattenToString()
 
-        // Try to open the VoiceOS service details page first (API 31+).
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val intentAction = "android.settings.ACCESSIBILITY_DETAILS_SETTINGS"
-            val detailsIntent = Intent(intentAction).apply {
-                putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", serviceComponent)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-
-            val openedDetails = runCatching {
-                context.startActivity(detailsIntent)
-                true
-            }.getOrElse {
-                AppLogger.w(TAG, "Accessibility details screen unavailable; opening list", it)
-                false
-            }
-
-            if (openedDetails) return
+        // Try to open the VoiceOS service details page first.
+        val detailsIntent = Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS).apply {
+            putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", serviceComponent)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+
+        val openedDetails = runCatching {
+            context.startActivity(detailsIntent)
+            true
+        }.getOrElse {
+            AppLogger.w(TAG, "Accessibility details screen unavailable; opening list", it)
+            false
+        }
+
+        if (openedDetails) return
 
         val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }

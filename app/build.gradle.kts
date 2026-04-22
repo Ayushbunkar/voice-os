@@ -38,6 +38,7 @@ android {
     buildFeatures {
         compose = true        // ← Enable Jetpack Compose
         viewBinding = true    // ← Keep for FloatingWidgetService + MacrosActivity
+        buildConfig = true
     }
 
     composeOptions {

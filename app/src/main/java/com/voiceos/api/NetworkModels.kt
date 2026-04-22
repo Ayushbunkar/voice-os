@@ -124,11 +124,13 @@ fun CommandDto.toInternalCommand(): Command {
          "CLICK" -> Command.Click(this.steps.first().index ?: 0)
          "SCROLL" -> {
              val dir = this.steps.first().direction?.trim()?.uppercase()
-             if (dir == "UP") {
-                 Command.Scroll(Command.ScrollDirection.UP)
-             } else {
-                 Command.Scroll(Command.ScrollDirection.DOWN)
+             val parsedDirection = when (dir) {
+                 "UP" -> Command.ScrollDirection.UP
+                 "LEFT" -> Command.ScrollDirection.LEFT
+                 "RIGHT" -> Command.ScrollDirection.RIGHT
+                 else -> Command.ScrollDirection.DOWN
              }
+             Command.Scroll(parsedDirection)
          }
          "GO_BACK" -> Command.GoBack
          "OPEN_APP" -> Command.OpenApp(this.steps.first().app ?: "")

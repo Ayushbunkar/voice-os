@@ -39,6 +39,9 @@ class VoiceAccessibilityService : AccessibilityService() {
     private lateinit var overlayManager: OverlayManager
     private var refreshDebounceMs = DEFAULT_DEBOUNCE_MS
     private var lastRefreshTime = 0L
+    private var lastOverlaySignature = ""
+    private var screenBounds = Rect()
+    private var maxTargetAreaPx: Long = 0L
 
     // ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -48,13 +51,19 @@ class VoiceAccessibilityService : AccessibilityService() {
         overlayManager = OverlayManager(this)
         val tuning = RuntimeTuning.get(applicationContext)
         refreshDebounceMs = tuning.accessibilityDebounceMs
+        val dm = resources.displayMetrics
+        screenBounds = Rect(0, 0, dm.widthPixels, dm.heightPixels)
+        maxTargetAreaPx = (screenBounds.width().toLong() * screenBounds.height().toLong() * 85L) / 100L
         PerfMetrics.recordTuning(accessibilityDebounceMs = refreshDebounceMs)
         AppLogger.i(TAG, "Accessibility Service connected")
         AppLogger.i(TAG, "Using adaptive debounce=${refreshDebounceMs}ms (tier=${tuning.tier})")
     }
 
     override fun onDestroy() {
+        clickableNodes.values.forEach { it.recycle() }
+        clickableNodes.clear()
         overlayManager.clearOverlay()
+        lastOverlaySignature = ""
         instance = null
         AppLogger.i(TAG, "Accessibility Service destroyed")
         super.onDestroy()
@@ -87,14 +96,35 @@ class VoiceAccessibilityService : AccessibilityService() {
         clickableNodes.values.forEach { it.recycle() }
         clickableNodes.clear()
 
-        val root = rootInActiveWindow ?: return
+        val root = rootInActiveWindow
+        if (root == null) {
+            if (lastOverlaySignature.isNotEmpty()) {
+                overlayManager.drawOverlay(emptyMap())
+                lastOverlaySignature = ""
+            }
+            return
+        }
+
         val collected = ArrayList<AccessibilityNodeInfo>(MAX_CLICKABLE_NODES)
-        collectUsableNodes(root, collected, MAX_CLICKABLE_NODES)
+        val seenNodeKeys = HashSet<String>(MAX_CLICKABLE_NODES * 2)
+        collectUsableNodes(root, collected, seenNodeKeys, MAX_CLICKABLE_NODES)
+
+        collected.sortWith(
+            compareBy<AccessibilityNodeInfo> { nodeTop(it) }
+                .thenBy { nodeLeft(it) }
+        )
 
         collected.forEachIndexed { idx, node ->
             clickableNodes[idx + 1] = node
         }
 
+        val signature = collected.joinToString(separator = "|") { buildNodeKey(it) }
+        if (signature == lastOverlaySignature) {
+            AppLogger.v(TAG, "Overlay unchanged (${clickableNodes.size} targets)")
+            return
+        }
+
+        lastOverlaySignature = signature
         AppLogger.d(TAG, "Indexed ${clickableNodes.size} clickable elements")
         overlayManager.drawOverlay(clickableNodes)
     }
@@ -102,45 +132,94 @@ class VoiceAccessibilityService : AccessibilityService() {
     private fun collectUsableNodes(
         node: AccessibilityNodeInfo,
         output: MutableList<AccessibilityNodeInfo>,
+        seenNodeKeys: MutableSet<String>,
         limit: Int
     ) {
         if (output.size >= limit) return
 
-        if (isUsableNode(node)) {
-            output.add(AccessibilityNodeInfo.obtain(node))
-            if (output.size >= limit) return
+        val targetNode = resolveActionTarget(node)
+        if (targetNode != null) {
+            val nodeKey = buildNodeKey(targetNode)
+            if (seenNodeKeys.add(nodeKey)) {
+                output.add(targetNode)
+                if (output.size >= limit) return
+            } else {
+                targetNode.recycle()
+            }
         }
 
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             if (child != null) {
-                collectUsableNodes(child, output, limit)
+                collectUsableNodes(child, output, seenNodeKeys, limit)
                 child.recycle() // Crucial: recycle children after use
                 if (output.size >= limit) return
             }
         }
     }
 
-    private fun isUsableNode(node: AccessibilityNodeInfo): Boolean {
-        if (!node.isVisibleToUser) return false
-        
+    private fun resolveActionTarget(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (!node.isVisibleToUser || !node.isEnabled) return null
+
         val rect = Rect()
         node.getBoundsInScreen(rect)
-        if (rect.isEmpty || rect.width() < 5 || rect.height() < 5) return false
+        if (!isTargetRectUsable(rect)) return null
 
-        // Check if this node is clickable or if it's a "leaf" with text/desc inside a clickable parent
-        if (node.isClickable) return true
-        
-        // Many Android buttons have clickable parents but non-clickable children
-        val parent = node.parent
-        val parentIsClickable = parent?.isClickable == true
-        parent?.recycle()
-        
-        if (parentIsClickable && (!node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank())) {
-            return true
+        if (node.isClickable) {
+            return AccessibilityNodeInfo.obtain(node)
         }
 
-        return false
+        val hasReadableText = !node.text.isNullOrBlank() || !node.contentDescription.isNullOrBlank()
+        if (!hasReadableText || node.childCount > 0) {
+            return null
+        }
+
+        val parent = node.parent
+        var current = parent
+        while (current != null) {
+            if (current.isClickable && current.isEnabled) {
+                val targetRect = Rect()
+                current.getBoundsInScreen(targetRect)
+                val target = if (isTargetRectUsable(targetRect)) AccessibilityNodeInfo.obtain(current) else null
+                current.recycle()
+                return target
+            }
+            val next = current.parent
+            current.recycle()
+            current = next
+        }
+
+        return null
+    }
+
+    private fun isTargetRectUsable(rect: Rect): Boolean {
+        if (rect.isEmpty || rect.width() < 5 || rect.height() < 5) return false
+        if (!Rect.intersects(rect, screenBounds)) return false
+
+        val clipped = Rect(rect)
+        if (!clipped.intersect(screenBounds)) return false
+        val area = clipped.width().toLong() * clipped.height().toLong()
+        if (area <= 0L) return false
+        return area <= maxTargetAreaPx
+    }
+
+    private fun buildNodeKey(node: AccessibilityNodeInfo): String {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        val className = node.className?.toString().orEmpty()
+        return "$className:${rect.left}:${rect.top}:${rect.right}:${rect.bottom}"
+    }
+
+    private fun nodeTop(node: AccessibilityNodeInfo): Int {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        return rect.top
+    }
+
+    private fun nodeLeft(node: AccessibilityNodeInfo): Int {
+        val rect = Rect()
+        node.getBoundsInScreen(rect)
+        return rect.left
     }
 
     // ── Public actions ────────────────────────────────────────────────
@@ -189,11 +268,17 @@ class VoiceAccessibilityService : AccessibilityService() {
         val h = dm.heightPixels.toFloat()
 
         val (startX, startY, endX, endY) = when (direction) {
-            Command.ScrollDirection.DOWN -> listOf(w / 2, h * 0.72f, w / 2, h * 0.28f)
-            Command.ScrollDirection.UP   -> listOf(w / 2, h * 0.28f, w / 2, h * 0.72f)
+            Command.ScrollDirection.DOWN -> listOf(w / 2, h * 0.74f, w / 2, h * 0.26f)
+            Command.ScrollDirection.UP   -> listOf(w / 2, h * 0.26f, w / 2, h * 0.74f)
+            Command.ScrollDirection.LEFT -> listOf(w * 0.82f, h / 2, w * 0.18f, h / 2)
+            Command.ScrollDirection.RIGHT -> listOf(w * 0.18f, h / 2, w * 0.82f, h / 2)
         }
         val path = Path().apply { moveTo(startX, startY); lineTo(endX, endY) }
-        val stroke = GestureDescription.StrokeDescription(path, 0L, 350L)
+        val durationMs = when (direction) {
+            Command.ScrollDirection.LEFT, Command.ScrollDirection.RIGHT -> 260L
+            else -> 300L
+        }
+        val stroke = GestureDescription.StrokeDescription(path, 0L, durationMs)
         dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
     }
 
