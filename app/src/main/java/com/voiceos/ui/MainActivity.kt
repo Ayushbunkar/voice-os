@@ -16,17 +16,7 @@ import com.voiceos.utils.AppUtils
 import com.voiceos.utils.AppLogger
 
 /**
- * MainActivity — Phase 3: Jetpack Compose entry point.
- *
- * The activity is now a thin host with three responsibilities:
- *   1. Own the [MainViewModel] and refresh permissions on resume.
- *   2. Handle the microphone permission request result.
- *   3. Call [setContent] to render [MainScreen] inside [VoiceOSTheme].
- *
- * All business logic lives in [MainViewModel] and the service layer.
- * All UI lives in [MainScreen], [PermissionScreen], and [ControlPanel].
- *
- * Note: [MacrosActivity] still uses ViewBinding XML — no change needed there.
+ * MainActivity — Host for the VoiceOS UI.
  */
 class MainActivity : ComponentActivity() {
 
@@ -34,47 +24,34 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
     }
 
-    // ── ViewModel ─────────────────────────────────────────────────────
     private val viewModel: MainViewModel by viewModels()
 
-    // ── Permission launcher ───────────────────────────────────────────
     private val micPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        AppLogger.i(TAG, "Microphone permission result: $granted")
         refreshPermissions()
     }
 
-    // ── Lifecycle ─────────────────────────────────────────────────────
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AppLogger.i(TAG, "MainActivity (Compose) created")
 
         setContent {
             VoiceOSTheme {
-                // Collect state from ViewModel as Compose State
                 val uiState by viewModel.uiState.collectAsState()
 
                 MainScreen(
                     uiState = uiState,
-
-                    // ── Permission callbacks ────────────────────────────
                     onGrantMic = { requestMicPermission() },
                     onOpenAccessibility = { AppUtils.openAccessibilitySettings(this) },
                     onGrantOverlay = { AppUtils.requestOverlayPermission(this) },
-
-                    // ── Control panel callbacks ─────────────────────────
                     onToggleAiMode = { viewModel.toggleAiMode() },
                     onToggleContinuousListening = { viewModel.toggleContinuousListening() },
-
-                    // ── Launch button ───────────────────────────────────
                     onLaunch = { viewModel.launchAssistant() },
-
-                    // ── Macros screen ───────────────────────────────────
+                    onStopAssistant = { viewModel.stopAssistant() },
                     onOpenMacros = {
                         startActivity(Intent(this, MacrosActivity::class.java))
-                    }
+                    },
+                    onExitApp = { finish() }
                 )
             }
         }
@@ -82,27 +59,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-check permissions every time the user returns from Settings
         refreshPermissions()
     }
-
-    // ── Private helpers ───────────────────────────────────────────────
 
     private fun refreshPermissions() {
         val micGranted = ContextCompat.checkSelfPermission(
             this, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-
         viewModel.refreshPermissions(isMicGranted = micGranted)
     }
 
     private fun requestMicPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            refreshPermissions() // already granted, just refresh status
-        } else {
-            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
+        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 }

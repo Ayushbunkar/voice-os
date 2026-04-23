@@ -52,6 +52,14 @@ object CommandParser {
             return Command.OpenApp(appName)
         }
 
+        // ── Write / Type Text ─────────────────────────────────────────────
+        val typeRegex = Regex("""^(write|type)\s+(.+)$""")
+        typeRegex.matchEntire(text)?.let { match ->
+            val content = match.groupValues[2].trim()
+            AppLogger.i(TAG, "Matched TypeText($content)")
+            return Command.TypeText(content)
+        }
+
         // ── Delegate to AI parser for natural language ────────────────────
         AppLogger.d(TAG, "Rule-based parse failed — delegating to AiCommandParser")
         return AiCommandParser.parseNaturalLanguage(rawText)

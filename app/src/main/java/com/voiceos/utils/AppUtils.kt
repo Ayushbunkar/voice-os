@@ -11,155 +11,52 @@ import android.widget.Toast
 import com.voiceos.service.VoiceAccessibilityService
 
 /**
- * AppUtils — Collection of static utility helpers used across the project.
+ * AppUtils — Optimized for maximum execution speed.
  */
 object AppUtils {
 
-    private const val TAG = "AppUtils"
+    fun hasOverlayPermission(context: Context): Boolean = Settings.canDrawOverlays(context)
 
-    // ─── Permission helpers ────────────────────────────────────────────────
-
-    /**
-     * Returns true if Android's "draw over other apps" permission is granted.
-     * Required for the floating widget and the overlay numbering system.
-     */
-    fun hasOverlayPermission(context: Context): Boolean =
-        Settings.canDrawOverlays(context)
-
-    /**
-     * Opens the system overlay permission screen so the user can grant it.
-     */
     fun requestOverlayPermission(context: Context) {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:${context.packageName}")
-        ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-
-        runCatching {
-            context.startActivity(intent)
-        }.onFailure {
-            AppLogger.w(TAG, "Overlay settings screen unavailable; opening app details", it)
-            openAppDetailsSettings(context)
-            showToast(context, "Enable 'Display over other apps' for VoiceOS")
-        }
-    }
-
-    /**
-     * Opens the Accessibility settings screen so the user can enable
-     * the VoiceOS accessibility service.
-     */
-    fun openAccessibilitySettings(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            showToast(
-                context,
-                "If blocked: App info > menu > Allow restricted settings"
-            )
-        }
-
-        val serviceComponent = ComponentName(
-            context,
-            VoiceAccessibilityService::class.java
-        ).flattenToString()
-
-        // Try to open the VoiceOS service details page first.
-        val detailsIntent = Intent(Settings.ACTION_ACCESSIBILITY_DETAILS_SETTINGS).apply {
-            putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", serviceComponent)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        val openedDetails = runCatching {
-            context.startActivity(detailsIntent)
-            true
-        }.getOrElse {
-            AppLogger.w(TAG, "Accessibility details screen unavailable; opening list", it)
-            false
-        }
-
-        if (openedDetails) return
-
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            .apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-
-        runCatching {
-            context.startActivity(intent)
-        }.onFailure {
-            AppLogger.w(TAG, "Accessibility settings screen unavailable; opening app details", it)
-            openAppDetailsSettings(context)
-        }
-    }
-
-    /** Opens App Info so users can allow restricted settings on Android 13+ sideloads. */
-    fun openAppDetailsSettings(context: Context) {
-        val intent = Intent(
-            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-            Uri.fromParts("package", context.packageName, null)
-        ).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
+        val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(intent) }
-            .onFailure { AppLogger.w(TAG, "Failed to open app details", it) }
     }
 
-    /** Reliable check for whether VoiceOS accessibility service is currently enabled. */
+    fun openAccessibilitySettings(context: Context) {
+        val service = ComponentName(context, VoiceAccessibilityService::class.java).flattenToString()
+        // Fast direct intent for API 31+ with fallback
+        val intent = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS").apply {
+            putExtra("android.provider.extra.ACCESSIBILITY_SERVICE_COMPONENT_NAME", service)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (runCatching { context.startActivity(intent) }.isFailure) {
+            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
     fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val accessibilityEnabled = Settings.Secure.getInt(
-            context.contentResolver,
-            Settings.Secure.ACCESSIBILITY_ENABLED,
-            0
-        ) == 1
-
-        if (!accessibilityEnabled) return false
-
-        val expected = ComponentName(
-            context,
-            VoiceAccessibilityService::class.java
-        ).flattenToString()
-
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        return enabledServices.split(':').any { it.equals(expected, ignoreCase = true) }
+        val expected = ComponentName(context, VoiceAccessibilityService::class.java).flattenToString()
+        val enabled = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        return enabled?.contains(expected, ignoreCase = true) == true
     }
-
-    // ─── App launcher helper ───────────────────────────────────────────────
 
     /**
-     * Attempts to launch an installed app whose label contains [appName] (case-insensitive).
-     * Returns true on success, false if no matching app was found.
+     * Ultra-fast app launcher using Intent resolution instead of package listing.
      */
     fun launchApp(context: Context, appName: String): Boolean {
-        AppLogger.i(TAG, "Attempting to launch app: $appName")
         val pm = context.packageManager
-        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-
-        val match = packages.firstOrNull { appInfo ->
-            val label = pm.getApplicationLabel(appInfo).toString()
-            label.contains(appName, ignoreCase = true)
-        }
-
-        return if (match != null) {
-            val launchIntent = pm.getLaunchIntentForPackage(match.packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launchIntent)
-                AppLogger.i(TAG, "Launched: ${match.packageName}")
+        val mainIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
+        val list = pm.queryIntentActivities(mainIntent, 0)
+        
+        val target = list.firstOrNull { it.loadLabel(pm).toString().contains(appName, true) }
+        return target?.let {
+            pm.getLaunchIntentForPackage(it.activityInfo.packageName)?.let { intent ->
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 true
-            } else {
-                AppLogger.w(TAG, "No launch intent for package: ${match.packageName}")
-                showToast(context, "Cannot launch ${match.packageName}")
-                false
             }
-        } else {
-            AppLogger.w(TAG, "No installed app matching: $appName")
-            showToast(context, "App not found: $appName")
-            false
-        }
+        } ?: false
     }
-
-    // ─── UI helpers ────────────────────────────────────────────────────────
 
     fun showToast(context: Context, message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()

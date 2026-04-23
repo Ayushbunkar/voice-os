@@ -95,9 +95,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         ctx.startForegroundService(intent)
-
-        // Keep the app in foreground to avoid "app closed" confusion during setup/testing.
         AppUtils.showToast(ctx, "Assistant started")
+    }
+
+    /**
+     * Completely shuts down the assistant service.
+     */
+    fun stopAssistant() {
+        ctx.stopService(Intent(ctx, FloatingWidgetService::class.java))
+        AppUtils.showToast(ctx, "Assistant stopped")
     }
 
     // ── Command log (called by FloatingWidgetService via broadcast) ───

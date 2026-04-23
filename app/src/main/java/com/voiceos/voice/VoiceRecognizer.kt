@@ -77,7 +77,8 @@ class VoiceRecognizer(private val context: Context) {
             AppLogger.w(TAG, "Error: $error")
             onError?.invoke(error)
             
-            if (shouldRestart) {
+            // Force restart even on error if continuousMode is true
+            if (continuousMode) {
                 if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
                     speechRecognizer?.cancel()
                 }
@@ -93,7 +94,8 @@ class VoiceRecognizer(private val context: Context) {
                 onResult?.invoke(best)
             }
             
-            if (shouldRestart) {
+            // Continuous restart
+            if (continuousMode) {
                 restartListeningIfNeeded()
             }
         }
@@ -183,24 +185,24 @@ class VoiceRecognizer(private val context: Context) {
         return when (runtimeProfile.tier) {
             "high" -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 70L,
-                minSpeechLengthMs = 160L,
-                completeSilenceMs = 240L,
-                possiblyCompleteSilenceMs = 170L
+                minRestartIntervalMs = 150L, // Increased from 70
+                minSpeechLengthMs = 300L,    // Increased from 160
+                completeSilenceMs = 800L,    // Increased from 240 (too aggressive)
+                possiblyCompleteSilenceMs = 500L // Increased from 170
             )
             "low" -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 130L,
-                minSpeechLengthMs = 280L,
-                completeSilenceMs = 440L,
-                possiblyCompleteSilenceMs = 320L
+                minRestartIntervalMs = 300L,
+                minSpeechLengthMs = 500L,
+                completeSilenceMs = 1500L,
+                possiblyCompleteSilenceMs = 1000L
             )
             else -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 95L,
-                minSpeechLengthMs = 210L,
-                completeSilenceMs = 330L,
-                possiblyCompleteSilenceMs = 240L
+                minRestartIntervalMs = 200L,
+                minSpeechLengthMs = 400L,
+                completeSilenceMs = 1000L,
+                possiblyCompleteSilenceMs = 700L
             )
         }
     }

@@ -1,9 +1,7 @@
 package com.voiceos.ui
 
-import com.voiceos.BuildConfig
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,29 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.voiceos.ui.theme.*
-import com.voiceos.utils.PerfMetrics
 
-/**
- * MainScreen — Top-level Compose screen for VoiceOS.
- *
- * Layout (scrollable column):
- *   1. Animated gradient hero header
- *   2. Ready status chip
- *   3. Permission section  (PermissionScreen.kt)
- *   4. Control panel       (ControlPanel.kt)
- *   5. Macros shortcut card
- *   6. Launch button
- *   7. Example commands footer
- */
 @Composable
 fun MainScreen(
     uiState: MainViewModel.UiState,
@@ -47,371 +30,146 @@ fun MainScreen(
     onToggleAiMode: () -> Unit,
     onToggleContinuousListening: () -> Unit,
     onLaunch: () -> Unit,
+    onStopAssistant: () -> Unit,
     onOpenMacros: () -> Unit,
+    onExitApp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
-    val perfSnapshot by PerfMetrics.snapshot.collectAsState()
-    val showPerfPanel = BuildConfig.DEBUG
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 36.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-
-        Spacer(Modifier.height(48.dp))
-
-        // ── 1. Hero Header ─────────────────────────────────────────────
-        HeroHeader()
-
-        Spacer(Modifier.height(20.dp))
-
-        // ── 2. Ready-status chip ───────────────────────────────────────
-        ReadyStatusChip(allGranted = uiState.allPermissionsGranted)
-
-        Spacer(Modifier.height(20.dp))
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-
-        Spacer(Modifier.height(20.dp))
-
-        // ── 3. Permission section ──────────────────────────────────────
-        PermissionSection(
-            isMicGranted = uiState.isMicGranted,
-            isAccessibilityOk = uiState.isAccessibilityEnabled,
-            isOverlayGranted = uiState.isOverlayGranted,
-            onGrantMic = onGrantMic,
-            onOpenAccessibility = onOpenAccessibility,
-            onGrantOverlay = onGrantOverlay
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── 4. Control panel ───────────────────────────────────────────
-        ControlPanel(
-            isAiModeEnabled = uiState.isAiModeEnabled,
-            isContinuousListening = uiState.isContinuousListening,
-            isListening = uiState.isListening,
-            isProcessing = uiState.isProcessing,
-            lastCommand = uiState.lastCommand,
-            showPerformancePanel = showPerfPanel,
-            performanceSnapshot = perfSnapshot,
-            onToggleAiMode = onToggleAiMode,
-            onToggleContinuousListening = onToggleContinuousListening
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── 5. Macros shortcut card ────────────────────────────────────
-        MacrosCard(onClick = onOpenMacros)
-
-        Spacer(Modifier.height(24.dp))
-
-        // ── 6. Launch button ───────────────────────────────────────────
-        LaunchButton(
-            allPermissionsGranted = uiState.allPermissionsGranted,
-            onClick = onLaunch
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        // ── 7. Example commands strip ──────────────────────────────────
-        ExampleCommandsRow()
-    }
-}
-
-// ── HeroHeader ────────────────────────────────────────────────────────────
-
-@Composable
-private fun HeroHeader() {
-    val glowAlpha = 0.72f
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // Gradient glow layer behind the icon
-        Box(contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Blue500.copy(alpha = glowAlpha * 0.5f),
-                                Color.Transparent
-                            ),
-                            center = Offset.Unspecified,
-                            radius = 120f
-                        )
-                    )
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // 1. App Logo & Title
             Icon(
                 imageVector = Icons.Default.RecordVoiceOver,
-                contentDescription = "VoiceOS",
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(64.dp)
             )
-        }
+            
+            Text(
+                text = "VoiceOS",
+                style = MaterialTheme.typography.displayMedium.copy(
+                    brush = Brush.horizontalGradient(listOf(Blue400, Blue600))
+                ),
+                fontWeight = FontWeight.ExtraBold
+            )
 
-        Spacer(Modifier.height(14.dp))
+            Text(
+                text = "AI Voice Automation",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
 
-        // App title
-        Text(
-            text = "VoiceOS",
-            style = MaterialTheme.typography.displayLarge.copy(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(Blue400, Blue500, Blue600)
+            Spacer(Modifier.height(32.dp))
+
+            // 2. Status Indicator
+            ReadyStatusChip(allGranted = uiState.allPermissionsGranted)
+
+            Spacer(Modifier.height(24.dp))
+
+            // 3. Main Action Hub (Logical grouping)
+            PermissionSection(
+                isMicGranted = uiState.isMicGranted,
+                isAccessibilityOk = uiState.isAccessibilityEnabled,
+                isOverlayGranted = uiState.isOverlayGranted,
+                onGrantMic = onGrantMic,
+                onOpenAccessibility = onOpenAccessibility,
+                onGrantOverlay = onGrantOverlay
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            ControlPanel(
+                isAiModeEnabled = uiState.isAiModeEnabled,
+                isContinuousListening = uiState.isContinuousListening,
+                isListening = uiState.isListening,
+                isProcessing = uiState.isProcessing,
+                lastCommand = uiState.lastCommand,
+                onToggleAiMode = onToggleAiMode,
+                onToggleContinuousListening = onToggleContinuousListening
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            // 4. Primary Launch Button (Centered and large)
+            Button(
+                onClick = onLaunch,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+                enabled = uiState.allPermissionsGranted,
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    contentColor = MaterialTheme.colorScheme.primary
                 )
-            ),
-            fontWeight = FontWeight.ExtraBold
-        )
+            ) {
+                Icon(Icons.Default.RocketLaunch, null)
+                Spacer(Modifier.width(12.dp))
+                Text("Start Assistant", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
 
-        Text(
-            text = "AI Voice Automation System",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+            Spacer(Modifier.height(12.dp))
 
-        Text(
-            text = "Phase 2",
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                .padding(horizontal = 8.dp, vertical = 2.dp)
-        )
+            // 5. Emergency Stop & Exit Button
+            OutlinedButton(
+                onClick = { 
+                    onStopAssistant()
+                    onExitApp()
+                },
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.PowerSettingsNew, null)
+                Spacer(Modifier.width(12.dp))
+                Text("Shut Down & Exit", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            
+            // Minimalist Macro link
+            TextButton(onClick = onOpenMacros) {
+                Icon(Icons.Default.FlashOn, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Automation Macros", style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
-
-// ── ReadyStatusChip ───────────────────────────────────────────────────────
 
 @Composable
 private fun ReadyStatusChip(allGranted: Boolean) {
-    val bgColor by animateColorAsState(
-        targetValue = if (allGranted) GreenOk.copy(0.15f) else AmberWarning.copy(0.12f),
-        animationSpec = tween(500),
-        label = "statusChipBg"
-    )
-    val textColor by animateColorAsState(
-        targetValue = if (allGranted) GreenOk else AmberWarning,
-        animationSpec = tween(500),
-        label = "statusChipText"
-    )
-    val icon = if (allGranted) Icons.Default.CheckCircle else Icons.Default.Warning
-    val label = if (allGranted) "✅  Ready to launch!" else "⚠  Complete setup below"
-
+    val color = if (allGranted) GreenOk else AmberWarning
     Row(
         modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentWidth(Alignment.CenterHorizontally)
             .clip(RoundedCornerShape(50))
-            .background(bgColor)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .background(color.copy(alpha = 0.1f))
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(16.dp))
+        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(color))
+        Spacer(Modifier.width(8.dp))
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = textColor
-        )
-    }
-}
-
-// ── MacrosCard ────────────────────────────────────────────────────────────
-
-@Composable
-private fun MacrosCard(onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.FlashOn,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Automation Macros",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Create and run multi-step automations",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Open macros",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-// ── LaunchButton ──────────────────────────────────────────────────────────
-
-@Composable
-private fun LaunchButton(
-    allPermissionsGranted: Boolean,
-    onClick: () -> Unit
-) {
-    // Subtle scale animation while the button is visible
-    val scale by animateFloatAsState(
-        targetValue = if (allPermissionsGranted) 1f else 0.96f,
-        animationSpec = tween(300),
-        label = "launchScale"
-    )
-
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(58.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale },
-        enabled = allPermissionsGranted,
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-        ),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Default.RocketLaunch,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = "Launch VoiceOS Assistant",
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+            text = if (allGranted) "Ready to Go" else "Setup Required",
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
             fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-// ── ExampleCommandsRow ────────────────────────────────────────────────────
-
-@Composable
-private fun ExampleCommandsRow() {
-    val examples = listOf(
-        "\"send hi to Riya\"",
-        "\"slide left\"",
-        "\"click 3\"",
-        "\"good morning\""
-    )
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "Try saying…",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            examples.take(2).forEach { cmd ->
-                SuggestionChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            text = cmd,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                    ),
-                    border = SuggestionChipDefaults.suggestionChipBorder(
-                        enabled = true,
-                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                    )
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            examples.drop(2).forEach { cmd ->
-                SuggestionChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            text = cmd,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                    ),
-                    border = SuggestionChipDefaults.suggestionChipBorder(
-                        enabled = true,
-                        borderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                    )
-                )
-            }
-        }
-    }
-}
-
-// ── Preview ───────────────────────────────────────────────────────────────
-
-@Preview(showBackground = true, showSystemUi = true)
-@Composable
-private fun MainScreenPreview() {
-    VoiceOSTheme(darkTheme = true) {
-        MainScreen(
-            uiState = MainViewModel.UiState(
-                isMicGranted = true,
-                isAccessibilityEnabled = true,
-                isOverlayGranted = false,
-                isAiModeEnabled = true,
-                lastCommand = "send hello to Riya"
-            ),
-            onGrantMic = {},
-            onOpenAccessibility = {},
-            onGrantOverlay = {},
-            onToggleAiMode = {},
-            onToggleContinuousListening = {},
-            onLaunch = {},
-            onOpenMacros = {}
         )
     }
 }

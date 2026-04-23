@@ -21,40 +21,34 @@ object AiCommandParser {
 
     /**
      * Parses a free-form natural language command into a [Command].
-     *
-     * Current implementation — heuristic keyword scanning.
-     * Replace with an actual API call for production NLP quality.
      */
     fun parseNaturalLanguage(rawText: String): Command {
         val text = rawText.trim().lowercase()
         AppLogger.d(TAG, "AI parsing: \"$text\"")
 
-        // ── Heuristic: contains a number + action verb ────────────────────
-        val numberInText = Regex("""\b(\d+)\b""").find(text)?.groupValues?.get(1)?.toIntOrNull()
-
-        val hasClickIntent = listOf("click", "tap", "press", "select", "choose", "hit")
-            .any { text.contains(it) }
-        if (hasClickIntent && numberInText != null) {
-            AppLogger.i(TAG, "AI inferred Click($numberInText)")
-            return Command.Click(numberInText)
+        // ── 1. Smart "Open X and Click Y" ─────────────────────────────
+        val openAndClickRegex = Regex("""^(?:open|launch|start)\s+(.+?)\s+(?:and|then)\s+(?:click|tap|press)\s+(?:the\s+)?(?:button\s+)?(?:number\s+)?(\d+)$""")
+        openAndClickRegex.find(text)?.let { m ->
+            val app = m.groupValues[1].trim()
+            val index = m.groupValues[2].toIntOrNull() ?: 1
+            AppLogger.i(TAG, "AI inferred MultiStep: Open($app) -> Click($index)")
+            return Command.MultiStep(listOf(
+                Command.OpenApp(app),
+                Command.Click(index)
+            ))
         }
 
-        // ── Heuristic: scroll intent ──────────────────────────────────────
-        if (text.contains("scroll") || text.contains("swipe") || text.contains("slide")) {
-            val dir = inferScrollDirection(text)
-            AppLogger.i(TAG, "AI inferred Scroll($dir)")
-            return Command.Scroll(dir)
+        // ── 2. Click specific numbers directly ────────────────────────
+        val directClickRegex = Regex("""^(?:click|tap|press|select)\s+(?:number\s+)?(\d+)$""")
+        directClickRegex.find(text)?.let { m ->
+            val index = m.groupValues[1].toIntOrNull() ?: 1
+            AppLogger.i(TAG, "AI inferred Click($index)")
+            return Command.Click(index)
         }
 
-        // ── Heuristic: back navigation ────────────────────────────────────
-        if (text.contains("back") || text.contains("previous") || text.contains("return")) {
-            AppLogger.i(TAG, "AI inferred GoBack")
-            return Command.GoBack
-        }
-
-        // ── Heuristic: app open intent ────────────────────────────────────
+        // ── 3. Open apps directly ─────────────────────────────────────
         val openKeywords = listOf("open", "launch", "start", "go to", "navigate to", "show")
-        val openKeyword = openKeywords.firstOrNull { text.contains(it) }
+        val openKeyword = openKeywords.firstOrNull { text.startsWith(it) }
         if (openKeyword != null) {
             val appName = text.substringAfter(openKeyword).trim()
             if (appName.isNotEmpty()) {

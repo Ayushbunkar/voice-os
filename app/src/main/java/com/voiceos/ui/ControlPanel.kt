@@ -1,11 +1,7 @@
 package com.voiceos.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -17,33 +13,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.voiceos.ui.theme.*
 import com.voiceos.utils.PerfSnapshot
 
 /**
- * ControlPanel — Phase 2 AI control and monitoring composable.
- *
- * Contains:
- *   [AiModeCard]            — toggle for AI mode + wake-word hint
- *   [ContinuousListenCard]  — toggle for always-on listening
- *   [CommandLogCard]        — animated chip showing the last executed command
- *   [ControlPanel]          — groups all three cards together
- */
-
-// ── ControlPanel (group) ──────────────────────────────────────────────────
-
-/**
- * Renders the full control panel section.
- *
- * @param isAiModeEnabled       current AI mode state
- * @param isContinuousListening current continuous listening state
- * @param isListening           mic is actively recording
- * @param isProcessing          AI is routing/executing a command
- * @param lastCommand           text of the most recently executed command
+ * Optimized Control Panel — Lightweight and clean.
  */
 @Composable
 fun ControlPanel(
@@ -58,412 +36,137 @@ fun ControlPanel(
     onToggleContinuousListening: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        
+        // Unified Control Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                
+                // AI Mode Row
+                ControlRow(
+                    icon = Icons.Default.Psychology,
+                    title = "AI Smart Mode",
+                    subtitle = if (isAiModeEnabled) "Listening for \"Hey VoiceOS\"" else "Manual Mode",
+                    checked = isAiModeEnabled,
+                    onCheckedChange = { onToggleAiMode() }
+                )
 
-        SectionLabel(text = "AI Controls", modifier = Modifier.padding(horizontal = 4.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-        // AI Mode toggle
-        AiModeCard(
-            isEnabled = isAiModeEnabled,
-            onToggle = onToggleAiMode
-        )
+                // Continuous Row
+                ControlRow(
+                    icon = Icons.Default.Hearing,
+                    title = "Always Listening",
+                    subtitle = if (isContinuousListening) "Continuous Active" else "Tap to speak",
+                    checked = isContinuousListening,
+                    onCheckedChange = { onToggleContinuousListening() }
+                )
+            }
+        }
 
-        // Continuous listening toggle
-        ContinuousListenCard(
-            isEnabled = isContinuousListening,
-            onToggle = onToggleContinuousListening
-        )
+        // Live Status Row (Compact)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            StatusIndicator(
+                label = "Listening",
+                isActive = isListening,
+                activeColor = MicListening,
+                modifier = Modifier.weight(1f)
+            )
+            StatusIndicator(
+                label = "Processing",
+                isActive = isProcessing,
+                activeColor = MicProcessing,
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-        // Status indicator row
-        AssistantStatusRow(
-            isListening = isListening,
-            isProcessing = isProcessing
-        )
-
-        // Last command log
-        if (lastCommand.isNotEmpty()) {
+        // Animated Last Command Log
+        AnimatedVisibility(
+            visible = lastCommand.isNotEmpty(),
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
             CommandLogCard(lastCommand = lastCommand)
         }
-
-        if (showPerformancePanel && performanceSnapshot != null) {
-            PerformanceDebugCard(snapshot = performanceSnapshot)
-        }
     }
 }
 
-// ── AiModeCard ────────────────────────────────────────────────────────────
-
 @Composable
-fun AiModeCard(
-    isEnabled: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier
+private fun ControlRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
 ) {
-    val containerColor by animateColorAsState(
-        targetValue = if (isEnabled)
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        else
-            MaterialTheme.colorScheme.surfaceVariant,
-        animationSpec = tween(400),
-        label = "aiCardColor"
-    )
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "AI Mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(
-                    checked = isEnabled,
-                    onCheckedChange = { onToggle() },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-            AnimatedVisibility(
-                visible = isEnabled,
-                enter = fadeIn() + slideInVertically(),
-                exit = fadeOut()
-            ) {
-                Text(
-                    text = "Say \"Hey VoiceOS\" then your command",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 6.dp, start = 32.dp)
-                )
-            }
-            AnimatedVisibility(
-                visible = !isEnabled,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Text(
-                    text = "Tap the mic bubble to speak",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp, start = 32.dp)
-                )
-            }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-// ── ContinuousListenCard ──────────────────────────────────────────────────
-
-@Composable
-fun ContinuousListenCard(
-    isEnabled: Boolean,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.HearingDisabled,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Continuous Listening",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (isEnabled) "Always listening for commands"
-                    else "Manual tap-to-talk mode",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            Switch(
-                checked = isEnabled,
-                onCheckedChange = { onToggle() },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
-    }
-}
-
-// ── AssistantStatusRow ────────────────────────────────────────────────────
-
-/**
- * Compact animated status row showing Listening / Processing indicator chips.
- */
-@Composable
-fun AssistantStatusRow(
-    isListening: Boolean,
-    isProcessing: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        StatusChip(
-            label = "Listening",
-            isActive = isListening,
-            activeColor = MicListening
-        )
-        StatusChip(
-            label = "Processing",
-            isActive = isProcessing,
-            activeColor = MicProcessing
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            modifier = Modifier.scale(0.8f)
         )
     }
 }
 
 @Composable
-fun StatusChip(
+private fun StatusIndicator(
     label: String,
     isActive: Boolean,
     activeColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val bgColor by animateColorAsState(
-        targetValue = if (isActive) activeColor.copy(alpha = 0.18f)
-        else MaterialTheme.colorScheme.surfaceVariant,
-        animationSpec = tween(300),
-        label = "chipBg"
-    )
-    val textColor by animateColorAsState(
-        targetValue = if (isActive) activeColor
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(300),
-        label = "chipText"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (isActive) activeColor
-        else MaterialTheme.colorScheme.outline,
-        animationSpec = tween(300),
-        label = "chipBorder"
-    )
-
-    Row(
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(bgColor)
-            .border(1.dp, borderColor, RoundedCornerShape(50))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isActive) activeColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, if (isActive) activeColor else Color.Transparent, RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        // Static dot avoids continuous recomposition while listening.
-        if (isActive) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(activeColor.copy(alpha = 0.92f))
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-            color = textColor
-        )
-    }
-}
-
-// ── CommandLogCard ────────────────────────────────────────────────────────
-
-/**
- * Shows the last executed voice command text in a styled card.
- */
-@Composable
-fun CommandLogCard(
-    lastCommand: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-        ),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Column {
-                Text(
-                    text = "Last command",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "\"$lastCommand\"",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    color = MaterialTheme.colorScheme.primary
-                )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (isActive) {
+                Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(activeColor))
             }
-        }
-    }
-}
-
-@Composable
-fun PerformanceDebugCard(
-    snapshot: PerfSnapshot,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
-        ),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
             Text(
-                text = "Debug Performance",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            PerfStatRow(
-                label = "Route",
-                lastMs = snapshot.route.lastMs,
-                avgMs = snapshot.route.avgMs,
-                count = snapshot.route.count
-            )
-            PerfStatRow(
-                label = "Execute",
-                lastMs = snapshot.execute.lastMs,
-                avgMs = snapshot.execute.avgMs,
-                count = snapshot.execute.count
-            )
-            PerfStatRow(
-                label = "WA total",
-                lastMs = snapshot.whatsAppTotal.lastMs,
-                avgMs = snapshot.whatsAppTotal.avgMs,
-                count = snapshot.whatsAppTotal.count
-            )
-            PerfStatRow(
-                label = "WA step",
-                lastMs = snapshot.whatsAppStep.lastMs,
-                avgMs = snapshot.whatsAppStep.avgMs,
-                count = snapshot.whatsAppStep.count
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-
-            Text(
-                text = "Last route: ${snapshot.lastRoutedCommand.ifBlank { "-" }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "Last execute: ${snapshot.lastExecuteCommand.ifBlank { "-" }} (${snapshot.lastExecuteStatus.ifBlank { "-" }})",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "Last WA step: ${snapshot.lastWhatsAppStep.ifBlank { "-" }} (${snapshot.lastWhatsAppStepStatus.ifBlank { "-" }})",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "Tuning: debounce=${snapshot.accessibilityDebounceMs}ms, poll=${snapshot.whatsAppPollMs}ms",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (isActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
     }
 }
 
 @Composable
-private fun PerfStatRow(
-    label: String,
-    lastMs: Long,
-    avgMs: Long,
-    count: Long
-) {
-    Row(
+fun CommandLogCard(lastCommand: String) {
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = "last ${lastMs}ms | avg ${avgMs}ms | n=$count",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-// ── Preview ───────────────────────────────────────────────────────────────
-
-@Preview(showBackground = true, backgroundColor = 0xFF0F1117)
-@Composable
-private fun ControlPanelPreview() {
-    VoiceOSTheme(darkTheme = true) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            ControlPanel(
-                isAiModeEnabled = true,
-                isContinuousListening = false,
-                isListening = true,
-                isProcessing = false,
-                lastCommand = "send hello to Riya",
-                onToggleAiMode = {},
-                onToggleContinuousListening = {}
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.KeyboardVoice, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "\"$lastCommand\"",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
             )
         }
     }

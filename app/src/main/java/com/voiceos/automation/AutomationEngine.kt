@@ -58,6 +58,16 @@ class AutomationEngine private constructor(context: Context) {
                 isDefault = true
             ),
             Macro(
+                id = "message_riya",
+                name = "message riya",
+                description = "Quickly send 'Hey' to Riya on WhatsApp",
+                steps = listOf(
+                    MacroStep.sendMessage("Riya", "Hey, what's up?")
+                ),
+                delayMs = 1500L,
+                isDefault = true
+            ),
+            Macro(
                 id = "quick_share",
                 name = "quick share",
                 description = "Opens WhatsApp to share something quickly",

@@ -178,10 +178,14 @@ class FloatingWidgetService : Service() {
             setButtonState(ButtonState.PROCESSING)
             AppLogger.i(TAG, "Voice result: \"$text\"")
 
+            // Always speak what we heard for immediate feedback
+            // tts().speak("Heard: $text") // Optional: maybe too chatty?
+
             // Wake-word filter (only in continuous / AI mode)
             if (aiModeEnabled) {
                 handleContinuousResult(text)
             } else {
+                tts().speak("Processing $text")
                 dispatchCommand(text)
             }
         }
@@ -218,13 +222,24 @@ class FloatingWidgetService : Service() {
 
             if (command.isNotEmpty()) {
                 AppLogger.i(TAG, "Wake word detected, command: \"$command\"")
-                tts().speak("Processing")
+                tts().speak("Processing $command")
                 dispatchCommand(command)
             } else {
-                tts().speak("Yes? Say your command.")
+                tts().speak("Yes?")
             }
         } else {
+            // If no wake word, but it looks like a direct command and AI mode is active, 
+            // maybe we should be more lenient if the user is talking directly to the app.
+            // For now, let's keep the wake word requirement but log it clearly.
             AppLogger.d(TAG, "No wake word in: \"$lower\" — ignored")
+            
+            // OPTIONAL: Auto-trigger if it's a very clear command like "click 5"
+            val clickRegex = Regex("""^(click|tap|press)\s+(\d+)$""")
+            if (clickRegex.matches(lower)) {
+                AppLogger.i(TAG, "Clear command detected without wake word: \"$lower\"")
+                tts().speak("Clicking $lower")
+                dispatchCommand(lower)
+            }
         }
     }
 
