@@ -9,7 +9,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const user = useStore((state) => state.user);
   const logout = useStore((state) => state.logout);
-  //kjbdsfsfd
+  
 
   const navItems = [
     { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
