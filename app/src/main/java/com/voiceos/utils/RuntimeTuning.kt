@@ -46,7 +46,7 @@ object RuntimeTuning {
                 cpuCores = cores,
                 memoryClassMb = memClass,
                 isLowRamDevice = lowRam,
-                accessibilityDebounceMs = 320L,
+                accessibilityDebounceMs = 500L,
                 whatsAppPollMs = 160L,
                 timeoutScale = 1.20f
             )
@@ -55,7 +55,7 @@ object RuntimeTuning {
                 cpuCores = cores,
                 memoryClassMb = memClass,
                 isLowRamDevice = lowRam,
-                accessibilityDebounceMs = 180L,
+                accessibilityDebounceMs = 300L,
                 whatsAppPollMs = 90L,
                 timeoutScale = 0.90f
             )
@@ -64,7 +64,7 @@ object RuntimeTuning {
                 cpuCores = cores,
                 memoryClassMb = memClass,
                 isLowRamDevice = lowRam,
-                accessibilityDebounceMs = 240L,
+                accessibilityDebounceMs = 400L,
                 whatsAppPollMs = 120L,
                 timeoutScale = 1.0f
             )

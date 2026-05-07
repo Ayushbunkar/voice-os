@@ -185,24 +185,24 @@ class VoiceRecognizer(private val context: Context) {
         return when (runtimeProfile.tier) {
             "high" -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 150L, // Increased from 70
-                minSpeechLengthMs = 300L,    // Increased from 160
-                completeSilenceMs = 800L,    // Increased from 240 (too aggressive)
-                possiblyCompleteSilenceMs = 500L // Increased from 170
+                minRestartIntervalMs = 300L, 
+                minSpeechLengthMs = 400L,    
+                completeSilenceMs = 1500L,   
+                possiblyCompleteSilenceMs = 1000L 
             )
             "low" -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 300L,
-                minSpeechLengthMs = 500L,
-                completeSilenceMs = 1500L,
-                possiblyCompleteSilenceMs = 1000L
+                minRestartIntervalMs = 600L,
+                minSpeechLengthMs = 800L,
+                completeSilenceMs = 2500L,
+                possiblyCompleteSilenceMs = 1800L
             )
             else -> VoiceTimingProfile(
                 tier = runtimeProfile.tier,
-                minRestartIntervalMs = 200L,
-                minSpeechLengthMs = 400L,
-                completeSilenceMs = 1000L,
-                possiblyCompleteSilenceMs = 700L
+                minRestartIntervalMs = 450L,
+                minSpeechLengthMs = 600L,
+                completeSilenceMs = 2000L,
+                possiblyCompleteSilenceMs = 1400L
             )
         }
     }

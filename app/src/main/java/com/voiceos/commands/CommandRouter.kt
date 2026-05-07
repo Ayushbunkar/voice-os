@@ -41,7 +41,7 @@ class CommandRouter(private val context: Context) {
      *
      * This is the ONLY function external callers (FloatingWidgetService) need.
      */
-    fun route(input: String): Command {
+    suspend fun route(input: String): Command {
         val startedAt = SystemClock.elapsedRealtime()
         val trimmed = input.trim()
         AppLogger.i(TAG, "Routing: \"$trimmed\"")
@@ -49,12 +49,30 @@ class CommandRouter(private val context: Context) {
         val score = AICommandProcessor.complexityScore(trimmed)
         AppLogger.d(TAG, "Complexity score: $score (threshold=$AI_THRESHOLD)")
 
-        val command = if (score >= AI_THRESHOLD) {
+        var command = if (score >= AI_THRESHOLD) {
             AppLogger.d(TAG, "→ Sending to AI processor")
             AICommandProcessor.process(trimmed, contextManager)
         } else {
             AppLogger.d(TAG, "→ Sending to rule-based parser")
             CommandParser.parse(trimmed)
+        }
+
+        // --- Phase 4 Fallback: Cloud AI ----------------------------------
+        if (command is Command.Unknown) {
+            AppLogger.i(TAG, "Local parse failed, attempting cloud fallback...")
+            runCatching {
+                val cloudHints = mutableMapOf<String, String>()
+                contextManager.lastApp?.let { cloudHints["lastApp"] = it }
+                contextManager.lastContact?.let { cloudHints["lastContact"] = it }
+                
+                val cloudResponse = CloudSyncManager.sendTextCommand(trimmed, cloudHints)
+                if (cloudResponse.success && cloudResponse.structured != null) {
+                    command = cloudResponse.structured.toInternalCommand()
+                    AppLogger.i(TAG, "Cloud successfully resolved command: $command")
+                }
+            }.onFailure {
+                AppLogger.w(TAG, "Cloud fallback failed: ${it.message}")
+            }
         }
 
         AppLogger.i(TAG, "Routed to: $command")
@@ -63,7 +81,7 @@ class CommandRouter(private val context: Context) {
         PerfMetrics.recordRouteLatency(trimmed, commandName, routeMs)
         AppLogger.i(TAG, "Route latency=${routeMs}ms command=$commandName")
         updateContext(command)
-        syncToCloud(trimmed)
+        syncToCloud(trimmed) // Background sync for history
         return command
     }
 

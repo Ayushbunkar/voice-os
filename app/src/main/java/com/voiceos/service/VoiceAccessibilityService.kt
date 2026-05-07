@@ -20,8 +20,7 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AccessibilityService"
-        private const val FAST_DEBOUNCE_MS = 100L // Reduced from 240ms
-        private const val MAX_CLICKABLE_NODES = 100
+        private const val MAX_CLICKABLE_NODES = 120 // Slightly increased limit
 
         @Volatile
         var instance: VoiceAccessibilityService? = null
@@ -34,15 +33,20 @@ class VoiceAccessibilityService : AccessibilityService() {
     private var lastOverlaySignature = ""
     private var screenBounds = Rect()
     private var maxTargetAreaPx: Long = 0L
+    private var debounceMs: Long = 400L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         overlayManager = OverlayManager(this)
+        
+        val tuning = RuntimeTuning.get(this)
+        debounceMs = tuning.accessibilityDebounceMs
+        
         val dm = resources.displayMetrics
         screenBounds = Rect(0, 0, dm.widthPixels, dm.heightPixels)
         maxTargetAreaPx = (screenBounds.width().toLong() * screenBounds.height().toLong() * 90L) / 100L
-        AppLogger.i(TAG, "Service Connected - High Speed Mode")
+        AppLogger.i(TAG, "Service Connected - Optimized Mode (debounce=${debounceMs}ms)")
     }
 
     override fun onDestroy() {
@@ -55,8 +59,18 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        
+        // Only refresh on meaningful UI changes to save CPU
+        val type = event.eventType
+        val isMeaningful = type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                type == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+                type == AccessibilityEvent.TYPE_WINDOWS_CHANGED
+
+        if (!isMeaningful) return
+
         val now = System.currentTimeMillis()
-        if (now - lastRefreshTime > FAST_DEBOUNCE_MS) {
+        if (now - lastRefreshTime > debounceMs) {
             lastRefreshTime = now
             refreshClickableNodes()
         }
@@ -77,8 +91,14 @@ class VoiceAccessibilityService : AccessibilityService() {
             clickableNodes[idx + 1] = node
         }
 
-        // Draw overlay only if something changed significantly
-        val signature = collected.size.toString() + root.packageName
+        // Draw overlay only if something changed significantly (count, package, or positions)
+        val boundsHash = collected.fold(0) { acc, node ->
+            val r = Rect()
+            node.getBoundsInScreen(r)
+            acc xor r.hashCode()
+        }
+        val signature = "${collected.size}_${root.packageName}_$boundsHash"
+        
         if (signature != lastOverlaySignature) {
             lastOverlaySignature = signature
             overlayManager.drawOverlay(clickableNodes)
