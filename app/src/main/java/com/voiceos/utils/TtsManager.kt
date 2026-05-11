@@ -45,8 +45,8 @@ class TtsManager private constructor(context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 tts?.language = Locale.US
-                tts?.setSpeechRate(0.95f)
-                tts?.setPitch(1.0f)
+                tts?.setSpeechRate(1.15f)
+                tts?.setPitch(1.05f)
                 isReady = true
                 AppLogger.i(TAG, "TTS engine ready")
                 // Flush any queued utterances

@@ -12,25 +12,28 @@ export interface ParseContext {
 // ── OpenAI client (lazy init so tests can mock) ────────────────────────────
 
 let openaiClient: OpenAI | null = null;
+let groqClient: OpenAI | null = null;
 
 function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    openaiClient = new OpenAI({ apiKey: env.openai.apiKey });
-  }
+  if (!openaiClient) openaiClient = new OpenAI({ apiKey: env.openai.apiKey });
   return openaiClient;
+}
+
+function getGroq(): OpenAI {
+  if (!groqClient) {
+    groqClient = new OpenAI({
+      apiKey: env.groq.apiKey,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+  }
+  return groqClient;
 }
 
 // ── Core function ──────────────────────────────────────────────────────────
 
 /**
  * parseCommandWithLLM — Sends the user's natural-language command to
- * GPT-4o-mini and receives a structured JSON action plan.
- *
- * Example:
- *   in:  "Send hello to Riya on WhatsApp and scroll down"
- *   out: { intent: "MULTI_STEP", steps: [...], confidence: 0.97 }
- *
- * Falls back to a rule-based parse if the API call fails.
+ * Groq (Llama-3) or GPT-4o-mini and receives a structured JSON action plan.
  */
 export async function parseCommandWithLLM(
   input: string,
@@ -40,8 +43,32 @@ export async function parseCommandWithLLM(
   logger.debug('LLM parse start', { input: input.slice(0, 100) });
 
   try {
-    const openai = getOpenAI();
+    // Try Groq first for extreme speed
+    if (env.groq.apiKey) {
+      try {
+        const groq = getGroq();
+        const response = await groq.chat.completions.create({
+          model: 'llama-3.1-70b-versatile', // High speed + High accuracy
+          max_tokens: env.openai.maxTokens,
+          temperature: 0.1, // Lower temperature for more consistent JSON
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: buildCommandSystemPrompt(context) + "\nReturn ONLY valid JSON." },
+            { role: 'user',   content: input },
+          ],
+        });
 
+        const raw = response.choices[0]?.message?.content ?? '{}';
+        const parsed = normalizeStructuredCommand(JSON.parse(raw) as Partial<StructuredCommand>, input);
+        logger.info('LLM parse: Groq success', { intent: parsed.intent, latency: Date.now() - start });
+        return parsed;
+      } catch (groqErr: any) {
+        logger.warn('LLM parse: Groq failed, falling back to OpenAI', { error: groqErr.message });
+      }
+    }
+
+    // Fallback to OpenAI
+    const openai = getOpenAI();
     const response = await openai.chat.completions.create({
       model: env.openai.model,
       max_tokens: env.openai.maxTokens,
@@ -55,21 +82,12 @@ export async function parseCommandWithLLM(
 
     const raw = response.choices[0]?.message?.content ?? '{}';
     const parsed = normalizeStructuredCommand(JSON.parse(raw) as Partial<StructuredCommand>, input);
-
-    logger.info('LLM parse success', {
-      input: input.slice(0, 60),
-      intent: parsed.intent,
-      steps: parsed.steps?.length,
-      latency: Date.now() - start,
-    });
-
+    logger.info('LLM parse: OpenAI success', { intent: parsed.intent, latency: Date.now() - start });
     return parsed;
 
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.error('LLM parse failed', { error: msg, input: input.slice(0, 80) });
-
-    // Fallback: return a basic unknown command so the caller can handle it
     return normalizeStructuredCommand(null, input);
   }
 }
