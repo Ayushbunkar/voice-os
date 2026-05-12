@@ -52,6 +52,12 @@ export const env = {
     temperature: parseFloat(process.env.OPENAI_TEMPERATURE || '0.2'),
   },
 
+  groq: {
+    apiKey:       process.env.GROQ_API_KEY || '',
+    model:        process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+    whisperModel: process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3',
+  },
+
   stripe: {
     secretKey:      process.env.STRIPE_SECRET_KEY || '',
     webhookSecret:  process.env.STRIPE_WEBHOOK_SECRET || '',

@@ -1,3 +1,25 @@
+import { z } from 'zod';
+
+export const CommandStepSchema = z.object({
+  action: z.string(),
+  app: z.string().optional(),
+  target: z.string().optional(),
+  message: z.string().optional(),
+  direction: z.enum(['up', 'down']).optional(),
+  index: z.number().int().min(0).optional(),
+  text: z.string().optional(),
+  url: z.string().url().optional(),
+  delayMs: z.number().int().min(0).optional(),
+  retries: z.number().int().min(0).optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export const StructuredCommandSchema = z.object({
+  intent: z.string(),
+  confidence: z.number().min(0).max(1),
+  steps: z.array(CommandStepSchema),
+});
+
 export type SupportedIntent =
   | 'CLICK'
   | 'SCROLL'
@@ -19,72 +41,23 @@ export type SupportedAction =
   | 'TYPE_TEXT'
   | 'RUN_MACRO';
 
-export interface CommandStep {
-  action: SupportedAction | string;
-  app?: string;
-  target?: string;
-  message?: string;
-  direction?: 'up' | 'down';
-  index?: number;
-  text?: string;
-  url?: string;
-  delayMs?: number;
-  retries?: number;
-  metadata?: Record<string, unknown>;
-}
-
-export interface StructuredCommand {
-  intent: SupportedIntent | string;
-  confidence: number;
-  steps: CommandStep[];
-  raw: string;
-}
-
-function toConfidence(value: unknown): number {
-  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
-  return Math.max(0, Math.min(1, value));
-}
-
-export function sanitizeCommandStep(step: Partial<CommandStep>): CommandStep | null {
-  if (!step.action || typeof step.action !== 'string') return null;
-
-  const clean: CommandStep = {
-    action: step.action,
-  };
-
-  if (typeof step.app === 'string') clean.app = step.app.trim().toLowerCase();
-  if (typeof step.target === 'string') clean.target = step.target.trim();
-  if (typeof step.message === 'string') clean.message = step.message.trim();
-  if (step.direction === 'up' || step.direction === 'down') clean.direction = step.direction;
-  if (typeof step.index === 'number' && Number.isFinite(step.index)) clean.index = Math.max(0, Math.floor(step.index));
-  if (typeof step.text === 'string') clean.text = step.text;
-  if (typeof step.url === 'string') clean.url = step.url.trim();
-  if (typeof step.delayMs === 'number' && Number.isFinite(step.delayMs)) clean.delayMs = Math.max(0, Math.floor(step.delayMs));
-  if (typeof step.retries === 'number' && Number.isFinite(step.retries)) clean.retries = Math.max(0, Math.floor(step.retries));
-  if (step.metadata && typeof step.metadata === 'object') clean.metadata = step.metadata;
-
-  return clean;
-}
+export type CommandStep = z.infer<typeof CommandStepSchema>;
+export type StructuredCommand = z.infer<typeof StructuredCommandSchema> & { raw: string };
 
 export function normalizeStructuredCommand(
-  input: Partial<StructuredCommand> | null | undefined,
+  input: any,
   raw: string
 ): StructuredCommand {
-  if (!input || typeof input !== 'object') {
-    return { intent: 'UNKNOWN', confidence: 0, steps: [], raw };
+  try {
+    const parsed = StructuredCommandSchema.parse(input);
+    return { ...parsed, raw };
+  } catch (err) {
+    // Fallback if schema fails but we have some partial data
+    return {
+      intent: typeof input?.intent === 'string' ? input.intent : 'UNKNOWN',
+      confidence: typeof input?.confidence === 'number' ? input.confidence : 0,
+      steps: Array.isArray(input?.steps) ? input.steps.filter((s: any) => s && s.action) : [],
+      raw,
+    };
   }
-
-  const intent = typeof input.intent === 'string' && input.intent.trim() ? input.intent.trim() : 'UNKNOWN';
-  const steps = Array.isArray(input.steps)
-    ? input.steps
-        .map((step) => sanitizeCommandStep(step as Partial<CommandStep>))
-        .filter((step): step is CommandStep => step !== null)
-    : [];
-
-  return {
-    intent,
-    confidence: toConfidence(input.confidence),
-    steps,
-    raw,
-  };
 }

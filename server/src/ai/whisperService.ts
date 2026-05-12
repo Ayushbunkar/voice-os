@@ -4,17 +4,25 @@ import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
 let openaiClient: OpenAI | null = null;
+let groqClient: OpenAI | null = null;
+
 function getOpenAI(): OpenAI {
   if (!openaiClient) openaiClient = new OpenAI({ apiKey: env.openai.apiKey });
   return openaiClient;
 }
 
+function getGroq(): OpenAI {
+  if (!groqClient) {
+    groqClient = new OpenAI({
+      apiKey: env.groq.apiKey,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
+  }
+  return groqClient;
+}
+
 /**
- * transcribeAudio — Sends an audio file to OpenAI Whisper and returns the transcribed text.
- *
- * @param filePath  Absolute path to the temp audio file (webm / mp4 / wav / m4a).
- * @param language  Optional BCP-47 language code (e.g. "en", "hi").
- * @returns         Transcribed text string.
+ * transcribeAudio — Sends an audio file to Groq (primary) or OpenAI (fallback) Whisper.
  */
 export async function transcribeAudio(
   filePath: string,
@@ -24,8 +32,26 @@ export async function transcribeAudio(
   const start = Date.now();
 
   try {
-    const openai = getOpenAI();
+    // Try Groq first for extreme speed and cost efficiency
+    if (env.groq.apiKey) {
+      try {
+        const groq = getGroq();
+        const transcription = await groq.audio.transcriptions.create({
+          model: env.groq.whisperModel,
+          file: fs.createReadStream(filePath),
+          language,
+          response_format: 'text',
+        });
+        const text = (transcription as unknown as string).trim();
+        logger.info('Whisper: Groq success', { text: text.slice(0, 80), latency: Date.now() - start });
+        return text;
+      } catch (groqErr: any) {
+        logger.warn('Whisper: Groq failed, falling back to OpenAI', { error: groqErr.message });
+      }
+    }
 
+    // Fallback to OpenAI
+    const openai = getOpenAI();
     const transcription = await openai.audio.transcriptions.create({
       model: env.openai.whisperModel,
       file: fs.createReadStream(filePath),
@@ -34,7 +60,7 @@ export async function transcribeAudio(
     });
 
     const text = (transcription as unknown as string).trim();
-    logger.info('Whisper: transcribed', { text: text.slice(0, 80), latency: Date.now() - start });
+    logger.info('Whisper: OpenAI success', { text: text.slice(0, 80), latency: Date.now() - start });
     return text;
 
   } catch (err: unknown) {
